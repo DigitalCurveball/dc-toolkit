@@ -1,0 +1,30 @@
+---
+// An email link that address-harvesting bots can't lift from the page source.
+//
+// Harvesters mostly fetch the raw HTML and search it for "name@domain" or
+// "mailto:". Here neither is ever written into the page: the two halves sit in
+// separate attributes, and the script below joins them in the visitor's browser.
+// Without JavaScript the text still reads "info [at] example.com" and just
+// isn't clickable.
+//
+// It stops simple scraping, which is most of it. A bot that runs a real browser
+// would still see the address, and nothing short of hiding it from people too
+// stops that.
+
+interface Props {
+  address: string;
+}
+
+// Unstyled on purpose: it takes the look of wherever it sits. A parent styles it
+// with :global(a), because a parent's scoped styles don't reach elements that
+// another component renders.
+const [user, domain] = Astro.props.address.split('@');
+---
+
+<a data-user={user} data-domain={domain}>{user} [at] {domain}</a>
+
+<script>
+  // The script that joins the halves, shared with any page whose Markdown renders addresses
+  // the same way. Astro bundles it once per page, however many EmailLinks the page has.
+  import './email-links';
+</script>
