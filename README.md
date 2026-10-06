@@ -185,8 +185,8 @@ A route, prerendered like a page, rather than a file in `public/`, so its Sitema
 ## Releasing
 
 1. `pnpm test`.
-2. Nothing client-specific in the repo: `grep -rniE "<client names>|0x4AAA" --exclude-dir=node_modules .` prints nothing (the list of names is kept with the business's records).
+2. Nothing client-specific in the repo: a grep for every client's name and for a Turnstile site key prints nothing (the command, with its list of names, is kept with the business's records).
 3. Bump `version` in `package.json` and add a `CHANGELOG.md` entry.
 4. Commit, then `git tag vX.Y.Z && git push origin main vX.Y.Z`.
 
-Sites receive it through Renovate, which moves the `github:` dependency and the QA workflow's `@vX.Y.Z` together in one pull request, checked by QA before it is merged.
+A site with Renovate receives it in one pull request, which moves the `github:` dependency and the QA workflow's `@vX.Y.Z` together and is checked by QA before it is merged. A site without Renovate is bumped by hand: both refs in one commit, then its gate.
