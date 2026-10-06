@@ -42,6 +42,15 @@ function routes({ contactForm, includeCms }) {
   };
 }
 
+// Vite takes aliases as an object or as a list of { find, replacement }. Either way the site's own
+// win: an object's later keys override earlier ones, and in a list the first match is used.
+function withAliases(toolkit, site) {
+  if (Array.isArray(site)) {
+    return [...site, ...Object.entries(toolkit).map(([find, replacement]) => ({ find, replacement }))];
+  }
+  return { ...toolkit, ...site };
+}
+
 /** The config for a given run; defineSite() supplies the run. Exported for the tests. */
 export function buildConfig({ contactForm = false, sitemap: sitemapOptions, integrations = [], vite = {}, ...astro }, { isDev, branch }) {
   // "main" must match the production branch in Cloudflare's build settings.
@@ -59,7 +68,7 @@ export function buildConfig({ contactForm = false, sitemap: sitemapOptions, inte
     ],
     adapter: isDev ? undefined : cloudflare(),
     session: false,
-    vite: { ...vite, resolve: { ...vite.resolve, alias: { ...alias, ...vite.resolve?.alias } } },
+    vite: { ...vite, resolve: { ...vite.resolve, alias: withAliases(alias, vite.resolve?.alias) } },
   });
 }
 

@@ -75,3 +75,11 @@ test("a site's own settings are kept, and the toolkit's options never reach Astr
   assert.equal('contactForm' in config, false);
   assert.equal('sitemap' in config, false);
 });
+
+test("a site's alias list keeps its entries first, so they win, and gets the toolkit's as entries", () => {
+  // Vite takes the first entry that matches, as an object's later keys win: either way the site's
+  // own alias overrides the toolkit's.
+  const mine = { find: /^~\//, replacement: '/src/' };
+  const config = buildConfig({ vite: { resolve: { alias: [mine] } } }, { isDev: false });
+  assert.deepEqual(config.vite.resolve.alias, [mine, { find: 'react-dom/server', replacement: 'react-dom/server.edge' }]);
+});
