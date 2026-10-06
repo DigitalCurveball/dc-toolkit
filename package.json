@@ -1,15 +1,22 @@
 {
   "name": "dc-toolkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the contact form's server side and robots.txt.",
   "license": "MIT",
   "type": "module",
   "repository": "github:DigitalCurveball/dc-toolkit",
-  "keywords": ["astro"],
-  "engines": { "node": ">=22.12.0" },
+  "keywords": [
+    "astro"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "packageManager": "pnpm@12.4.2",
   "exports": {
-    ".": { "types": "./index.d.ts", "default": "./index.mjs" },
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.mjs"
+    },
     "./contact": "./src/contact.ts",
     "./email-links": "./src/email-links.ts",
     "./EmailLink.astro": "./src/EmailLink.astro",
@@ -21,7 +28,12 @@
     "dc-qa": "./bin/dc-qa.mjs",
     "dc-check-routing": "./bin/dc-check-routing.mjs"
   },
-  "files": ["index.mjs", "index.d.ts", "src", "bin"],
+  "files": [
+    "index.mjs",
+    "index.d.ts",
+    "src",
+    "bin"
+  ],
   "scripts": {
     "test": "node --test test/*.test.ts test/*.test.mjs"
   },
@@ -46,6 +58,7 @@
     "astro": "^7.3.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "typescript": "^6.0.3",
     "wrangler": "^4.135.0"
   }
 }
