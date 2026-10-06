@@ -19,6 +19,9 @@
 //              Note it does not evaluate ::placeholder text, so it is a floor,
 //              not a ceiling. See the README, "What axe does not catch".
 //   overflow   no horizontal scrolling at 320, 400, 768 and 1280.
+//   covered    no text that another element paints over, at the same widths: a
+//              positioned photo or slab overlapping copy, which neither the
+//              overflow check nor axe sees (src/covered-text.mjs).
 //   links      in-page anchors point at something that exists, internal links
 //              resolve. Bare "#" placeholders are counted, not failed: they are
 //              expected until launch, and the launch checklist is where they
@@ -31,19 +34,13 @@
 // red run never stops a content edit reaching the site. What a red run blocks is
 // the launch checklist, which is a human step.
 
-import { createServer } from 'node:http';
-import { appendFile, readFile, writeFile } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
+import { appendFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
+import { findCoveredText } from '../src/covered-text.mjs';
+import { serve } from '../src/serve.mjs';
 
 const WIDTHS = [320, 400, 768, 1280];
-const TYPES = {
-  '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
-  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
-  '.avif': 'image/avif', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
-};
 
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -61,29 +58,6 @@ const jsonFile = arg('json');
 if (!dir && !url) {
   console.error('Need --dir <build output> or --url <live site>');
   process.exit(2);
-}
-
-/** Serves a directory so the checks can run with no external dependency. */
-async function serve(root) {
-  const base = resolve(root);
-  const server = createServer(async (req, res) => {
-    const path = join(base, decodeURIComponent(req.url.split('?')[0]));
-    // The same lookups Cloudflare makes: the file itself, /about -> about.html, and
-    // /about or /about/ -> about/index.html. Without the last one, a link typed
-    // without its trailing slash is reported broken although it works live.
-    for (const file of [path, `${path}.html`, join(path, 'index.html')]) {
-      try {
-        const body = await readFile(file);
-        res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
-        return res.end(body);
-      } catch {
-        // Not this one (or it is a directory); try the next.
-      }
-    }
-    res.writeHead(404).end('not found');
-  });
-  await new Promise((done) => server.listen(0, '127.0.0.1', done));
-  return { origin: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
 }
 
 const server = dir ? await serve(dir) : null;
@@ -228,6 +202,18 @@ for (const path of paths) {
       lines.push(`- ❌ **${width}px** overflows by ${overflow}px`);
     } else {
       lines.push(`- ✅ ${width}px no overflow`);
+    }
+
+    // Covered text, once the fonts have settled the lines where they will stay.
+    await page.evaluate(() => document.fonts.ready);
+    const covered = await page.evaluate(findCoveredText);
+    widthResult.covered = covered;
+    if (covered.length) {
+      failures.push(`${path} at ${width}px: text covered in ${covered.length} element(s)`);
+      lines.push(`- ❌ **${width}px** text covered in ${covered.length} element(s)`);
+      for (const c of covered.slice(0, 5)) lines.push(`    - \`${c.element}\` ("${c.text}…") under \`${c.by}\``);
+    } else {
+      lines.push(`- ✅ ${width}px no covered text`);
     }
 
     // axe at the narrowest and widest only: the middle widths rarely differ, and

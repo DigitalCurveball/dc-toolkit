@@ -14,4 +14,6 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The covered-text check's tests lay pages out in a real browser.
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test
