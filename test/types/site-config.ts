@@ -1,4 +1,5 @@
-// Type fixtures for defineSite(), checked by test/types.test.mjs with tsc. A site's
+// Type fixtures for defineSite(), checked by test/types.test.mjs with tsc, which also checks the
+// package's source and tests (tsconfig.json beside this file). A site's
 // `astro check` reads astro.config.mjs the same way, so a type that fails here fails there.
 import { fontProviders } from 'astro/config';
 import { defineSite } from 'dc-toolkit';

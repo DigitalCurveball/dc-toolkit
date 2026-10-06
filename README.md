@@ -5,8 +5,10 @@ The code every Digital Curveball site runs unchanged: the Astro and Cloudflare s
 It ships source (`.mjs`, `.ts`, `.astro`) with no build step, and is installed from a version tag:
 
 ```json
-"dc-toolkit": "github:DigitalCurveball/dc-toolkit#v0.1.0"
+"dc-toolkit": "github:DigitalCurveball/dc-toolkit#vX.Y.Z"
 ```
+
+where `vX.Y.Z` is the newest tag, the top entry in `CHANGELOG.md`.
 
 Its peers (Astro, the Cloudflare adapter, React, Keystatic, the sitemap, Playwright, axe and Wrangler) are the site's own dependencies, at the site's versions. `astro` being a peer is also what makes Astro compile this package's files.
 
@@ -79,6 +81,14 @@ Run both forms: a branch build leaves the CMS out, and differs enough to fail on
 
 It refuses to start while any `workerd` process is running. Killing a `wrangler dev` wrapper leaves `wrangler` alive, watching the build folder and holding the port; the next run then answers from an old server against rebuilt files, and everything 404s. That once produced a false "not_found_handling breaks asset serving". Stop the process tree: `workerd`'s parent is `wrangler`, which `ps` names "MainThread".
 
+### What the checks caught on the first site, within a day
+
+Both will recur, so check them early rather than waiting for the gate.
+
+**No canonical URL and no Open Graph tags at all.** Every link shared with the client, or posted anywhere, would have been a bare URL with no title card. That is why the meta check exists, why a site needs `site` set in `astro.config.mjs`, and why it needs a social card image.
+
+**A Google Fonts `<link>` cost about 2,040ms of render-blocking**, holding performance at 91 and first contentful paint at 2.8s, because text cannot paint until a third party responds. Self-hosting through Astro's `fonts` config fixed it: performance 98 to 99, first contentful paint 0.8s, layout shift 0, and no requests to Google from visitors' browsers at all.
+
 ### What axe does not catch
 
 A careful manual pass on one site found three contrast failures where axe reported two: it does not evaluate `::placeholder` text. The gate is a floor, not a ceiling. Translucent text, placeholders and disabled states still need eyes on them.
@@ -101,7 +111,7 @@ on:
 
 jobs:
   qa:
-    uses: DigitalCurveball/dc-toolkit/.github/workflows/qa.yml@v0.1.0
+    uses: DigitalCurveball/dc-toolkit/.github/workflows/qa.yml@vX.Y.Z   # the same tag as the dependency
     with:
       target: ${{ inputs.target || 'build' }}
       concept_file: ${{ inputs.concept_file || 'index.html' }}
@@ -115,7 +125,7 @@ A form that sends each message to the owner's inbox through a route on the site'
 
 | Part | Where |
 |---|---|
-| The route | `src/routes/contact.ts`, injected by `defineSite({ contactForm: true })` |
+| The route | `src/routes/contact.ts`, injected by `defineSite({ contactForm: true })`; its work is `src/contact-handler.ts`, which `test/contact-route.test.ts` runs through every refusal |
 | The rules the form and route share | `src/contact.ts`, exported as `dc-toolkit/contact` |
 | The form, and the site key | the site's `ContactForm.astro` and `src/lib/contact.ts` |
 | Routing and bindings | the site's `wrangler.jsonc`: `run_worker_first`, and the bindings block |

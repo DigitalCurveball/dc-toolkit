@@ -22,13 +22,14 @@ test('a filled honeypot is caught before anything else', () => {
 });
 
 test('header injection through the name or the address is refused', () => {
-  for (const fields of [
+  const attempts: Record<string, string>[] = [
     { name: 'Ada\nBcc: x@example.com' },
     { email: 'ada@example.com\nBcc: x@example.com' },
     { email: 'ada@example.com, x@example.com' },
     { email: 'Ada <ada@example.com>' },
     { email: '"ada"@example.com' },
-  ]) {
+  ];
+  for (const fields of attempts) {
     assert.deepEqual(parseContactForm(form(fields)), { kind: 'invalid' }, JSON.stringify(fields));
   }
 });

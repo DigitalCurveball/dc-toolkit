@@ -1,5 +1,5 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "compilerOptions": { "noEmit": true },
-  "include": ["*.ts"]
+  "compilerOptions": { "noEmit": true, "types": ["astro/client"] },
+  "include": ["*.ts", "../../src/**/*.ts", "../*.test.ts"]
 }

@@ -1,6 +1,6 @@
 {
   "name": "dc-toolkit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the contact form's server side and robots.txt.",
   "license": "MIT",
   "type": "module",
