@@ -70,7 +70,7 @@ Bare `href="#"` links are counted, not failed: they are expected until launch. E
 
 ### The routing check
 
-`pnpm check:routing` (`"check:routing": "dc-check-routing"`) builds the site, runs the built Worker under `wrangler dev` with every call to it logged, and requests each page, a made-up URL and the CMS, both as a browser page load and as a bot. It fails unless pages and made-up URLs are answered by the static asset layer without the Worker, and the paths in `run_worker_first` always reach it. It also asks `wrangler deploy --dry-run` whether the deploy config would be accepted.
+`pnpm check:routing` (`"check:routing": "dc-check-routing"`) builds the site, runs the built Worker under `wrangler dev` with every call to it logged, and requests each page, a made-up URL and the CMS, both as a browser page load and as a bot. It fails unless pages and made-up URLs are answered by the static asset layer without the Worker, and the paths in `run_worker_first` always reach it. It also asks `wrangler deploy --dry-run` whether the deploy config would be accepted. It leaves `dist/` holding the build it checked, so after `--branch preview`, run `pnpm build` before `pnpm qa` or comparing output: a preview build has no CMS.
 
 | When | How |
 |---|---|
