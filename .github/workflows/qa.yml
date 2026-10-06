@@ -1,0 +1,103 @@
+name: QA
+
+# The quality gate for a Digital Curveball site, called from the site's own
+# .github/workflows/qa.yml, which keeps the triggers (README, "The QA workflow").
+# It runs in parallel with Cloudflare, which deploys from main independently, so a
+# failure here never stops a deploy: a client's CMS save must always reach the site.
+# What a red run blocks is the launch checklist, which is a human step.
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: build (the site), or concept (a file in concept_dir, as a baseline before porting)
+        type: string
+        default: build
+      concept_dir:
+        description: Where the concepts are
+        type: string
+        default: public/concepts
+      concept_file:
+        description: Which concept (used only when target is concept)
+        type: string
+        default: index.html
+
+jobs:
+  accessibility-and-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The runner has the system libraries a browser needs; a WSL dev machine
+      # usually does not, which is why local runs need `playwright install-deps`.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm build
+        if: inputs.target != 'concept'
+
+      # Writes its report to the job summary, and exits non-zero on any failure so
+      # the run goes red where Mena will see it. The client never sees this.
+      #
+      # The concept option runs the same checks against the approved design that
+      # this site was ported from, which is how "the port improved accessibility"
+      # becomes a measurement rather than a claim.
+      #
+      # The build is checked through `pnpm qa`, so the list of pages lives in one
+      # place: package.json. Add every new page there.
+      - name: Check
+        env:
+          TARGET: ${{ inputs.target }}
+          CONCEPT_DIR: ${{ inputs.concept_dir }}
+          CONCEPT_FILE: ${{ inputs.concept_file }}
+        run: |
+          if [ "$TARGET" = "concept" ]; then
+            pnpm exec dc-qa --dir "$CONCEPT_DIR" --path "/$CONCEPT_FILE"
+          else
+            pnpm qa
+          fi
+
+  # Separate job so it runs alongside the checks above rather than after them,
+  # and so a Lighthouse flake is obviously distinct from an accessibility failure.
+  # Budgets come from the runbook's QA gate: performance 95, accessibility 100,
+  # SEO 95. Median of three runs, because a single run on a shared runner is noisy.
+  lighthouse:
+    runs-on: ubuntu-latest
+    if: inputs.target != 'concept'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # The same pages as the job above: the paths in package.json's qa script, so the
+      # list lives in one place. Left to find pages itself, Lighthouse takes the first
+      # five HTML files in the build, which include the noindexed concepts from
+      # public/concepts/ (failing SEO by design) and would skip real pages as the site
+      # grows. The action's own urls input doesn't stop that when the config sets
+      # staticDistDir (tried 2026-10-02), so this writes the list into a copy of the
+      # config as collect.url, which does; Lighthouse swaps in its server's port.
+      - name: Pages to check
+        run: |
+          node -e "
+            const config = require('./lighthouserc.json');
+            const paths = require('./package.json').scripts.qa.match(/--path (\S+)/)[1].split(',');
+            config.ci.collect.url = paths.map((p) => 'http://localhost' + p);
+            require('fs').writeFileSync('lighthouserc.ci.json', JSON.stringify(config, null, 2));
+            console.log(config.ci.collect.url.join('\n'));
+          "
+      - uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./lighthouserc.ci.json
+          uploadArtifacts: true
