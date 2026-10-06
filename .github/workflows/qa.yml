@@ -45,7 +45,7 @@ jobs:
         if: inputs.target != 'concept'
 
       # Writes its report to the job summary, and exits non-zero on any failure so
-      # the run goes red where Mena will see it. The client never sees this.
+      # the run goes red where the developer will see it. The client never sees this.
       #
       # The concept option runs the same checks against the approved design that
       # this site was ported from, which is how "the port improved accessibility"
