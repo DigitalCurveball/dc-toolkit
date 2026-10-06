@@ -1,7 +1,7 @@
 {
   "name": "dc-toolkit",
-  "version": "0.1.2",
-  "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the contact form's server side and robots.txt.",
+  "version": "0.2.0",
+  "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the port comparison, the contact form's server side and robots.txt.",
   "license": "MIT",
   "type": "module",
   "repository": "github:DigitalCurveball/dc-toolkit",
@@ -26,6 +26,7 @@
   },
   "bin": {
     "dc-qa": "./bin/dc-qa.mjs",
+    "dc-compare": "./bin/dc-compare.mjs",
     "dc-check-routing": "./bin/dc-check-routing.mjs"
   },
   "files": [

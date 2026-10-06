@@ -1,6 +1,6 @@
 # dc-toolkit
 
-The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the contact form's server side, `robots.txt`, a few small helpers and the QA workflow. Each site is an Astro project (static output, Keystatic for content, Cloudflare Workers for hosting) made from a private template; this package holds the parts that must be the same everywhere, so a fix reaches every site through one update instead of a copy in each.
+The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the comparison of a port with its concept, the contact form's server side, `robots.txt`, a few small helpers and the QA workflow. Each site is an Astro project (static output, Keystatic for content, Cloudflare Workers for hosting) made from a private template; this package holds the parts that must be the same everywhere, so a fix reaches every site through one update instead of a copy in each.
 
 It ships source (`.mjs`, `.ts`, `.astro`) with no build step, and is installed from a version tag:
 
@@ -46,7 +46,7 @@ What stays in each site: `site`, fonts, Markdown settings and its own integratio
 
 ## The checks
 
-`dc-qa` runs axe-core (WCAG 2 A and AA) and a horizontal-overflow check at 320, 400, 768 and 1280px, plus link, heading-order and meta checks once per page. axe runs at the narrowest and widest widths only; the middle two rarely differ and each scan costs a second or two. A second job in the QA workflow runs Lighthouse against the budgets in the site's `lighthouserc.json` (performance 95, accessibility 100, SEO 95), taking the median of three runs because a single run on a shared runner is noisy.
+`dc-qa` runs axe-core (WCAG 2 A and AA), a horizontal-overflow check and a covered-text check at 320, 400, 768 and 1280px, plus link, heading-order and meta checks once per page. axe runs at the narrowest and widest widths only; the middle two rarely differ and each scan costs a second or two. A second job in the QA workflow runs Lighthouse against the budgets in the site's `lighthouserc.json` (performance 95, accessibility 100, SEO 95), taking the median of three runs because a single run on a shared runner is noisy.
 
 | When | Target | How |
 |---|---|---|
@@ -92,6 +92,21 @@ Both will recur, so check them early rather than waiting for the gate.
 ### What axe does not catch
 
 A careful manual pass on one site found three contrast failures where axe reported two: it does not evaluate `::placeholder` text. The gate is a floor, not a ceiling. Translucent text, placeholders and disabled states still need eyes on them.
+
+Nor does axe see **text another element paints over**, and neither does the overflow check: an approved concept passed both with its hero photo covering the ends of the intro's lines from 800 to 1440px, because the photo's box was positioned (for its absolutely placed image) and the copy beside it was not. So `dc-qa` asks, at three points along each line of visible text, what is on top (`src/covered-text.mjs`). It fails only when that thing paints there: an image, or a background inside a positioned element or another stacking context. An ordinary block's background is painted beneath all text, so a block pulled up by a negative margin passes, as do transparent overlays (a stretched link), visually hidden text, a wordmark clipped by its box and the answer in a closed `<details>`. Each line is scrolled to the middle of the viewport first, where a sticky header is not in the way.
+
+### Comparing a port with its concept
+
+`dc-compare` is the side-by-side pass of a port, measured rather than eyeballed. After a build:
+
+```sh
+pnpm exec dc-compare --concept public/concepts/<file>.html            # the home page
+pnpm exec dc-compare --concept public/concepts/pages/about.html --path /about/
+```
+
+It loads both at 320, 400, 640, 768, 1024, 1280 and 1440px (`--widths` takes the concept's own breakpoints too) and compares every element of every class the two pages share, in document order: a port lifts the concept's CSS as it stands, so the class names match and nothing needs listing. A box's x, width and height are compared as they are, and its position down the page from the top of its section, so a change above does not flag everything below. It lists classes found in only one page, which is how a missing part shows, and an element shown in one and hidden in the other. Differences within a pixel are ignored (`--tolerance`).
+
+It reports and never fails: a change made to the concept on purpose shows in it for good. On the first port it was run on, every box matched except the three changes made deliberately, which also confirmed the self-hosted fonts set text at the concept's widths.
 
 ## The QA workflow
 
