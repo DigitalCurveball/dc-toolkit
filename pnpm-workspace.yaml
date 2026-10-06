@@ -1,0 +1,4 @@
+allowBuilds:
+  esbuild: true
+  # Cloudflare's runtime, which wrangler (a dev dependency here) installs.
+  workerd: true

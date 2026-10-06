@@ -1,0 +1,51 @@
+{
+  "name": "dc-toolkit",
+  "version": "0.1.0",
+  "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the contact form's server side and robots.txt.",
+  "license": "MIT",
+  "type": "module",
+  "repository": "github:DigitalCurveball/dc-toolkit",
+  "keywords": ["astro"],
+  "engines": { "node": ">=22.12.0" },
+  "packageManager": "pnpm@12.4.2",
+  "exports": {
+    ".": { "types": "./index.d.ts", "default": "./index.mjs" },
+    "./contact": "./src/contact.ts",
+    "./email-links": "./src/email-links.ts",
+    "./EmailLink.astro": "./src/EmailLink.astro",
+    "./paths": "./src/paths.ts",
+    "./text": "./src/text.ts",
+    "./routes/*": "./src/routes/*"
+  },
+  "bin": {
+    "dc-qa": "./bin/dc-qa.mjs",
+    "dc-check-routing": "./bin/dc-check-routing.mjs"
+  },
+  "files": ["index.mjs", "index.d.ts", "src", "bin"],
+  "scripts": {
+    "test": "node --test test/*.test.ts test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@astrojs/cloudflare": "^14.3.2",
+    "@astrojs/react": "^6.0.6",
+    "@astrojs/sitemap": "^3.7.4",
+    "@axe-core/playwright": "^4.13.0",
+    "@keystatic/astro": "^6.0.0",
+    "astro": "^7.3.3",
+    "playwright": "^1.63.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "wrangler": "^4.135.0"
+  },
+  "devDependencies": {
+    "@astrojs/cloudflare": "^14.3.2",
+    "@astrojs/react": "^6.0.6",
+    "@astrojs/sitemap": "^3.7.4",
+    "@keystatic/astro": "^6.0.0",
+    "@keystatic/core": "^0.6.9",
+    "astro": "^7.3.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "wrangler": "^4.135.0"
+  }
+}
