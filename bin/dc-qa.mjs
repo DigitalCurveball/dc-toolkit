@@ -22,6 +22,9 @@
 //   covered    no text that another element paints over, at the same widths: a
 //              positioned photo or slab overlapping copy, which neither the
 //              overflow check nor axe sees (src/covered-text.mjs).
+//   menus      a Menu button opens its menu, Tab goes from it into the menu, and
+//              Escape closes it and puts focus back, at each width the button
+//              shows (src/menu-buttons.mjs). axe sees none of that.
 //   links      in-page anchors point at something that exists, internal links
 //              resolve. Bare "#" placeholders are counted, not failed: they are
 //              expected until launch, and the launch checklist is where they
@@ -38,6 +41,7 @@ import { appendFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { findCoveredText } from '../src/covered-text.mjs';
+import { checkMenuButtons } from '../src/menu-buttons.mjs';
 import { serve } from '../src/serve.mjs';
 
 const WIDTHS = [320, 400, 768, 1280];
@@ -236,6 +240,21 @@ for (const path of paths) {
             if (node.any?.[0]?.message) lines.push(`      ${node.any[0].message}`);
           }
         }
+      }
+    }
+
+    // Menu buttons, last because it presses keys and clicks: at every width, since the button
+    // usually shows only at the narrow ones.
+    const menus = await checkMenuButtons(page);
+    widthResult.menus = menus;
+    for (const { button, problems } of menus) {
+      if (!problems.length) {
+        lines.push(`- ✅ ${width}px menu button opens its menu, Tab goes into it, Escape closes it`);
+        continue;
+      }
+      for (const problem of problems) {
+        failures.push(`${path} at ${width}px: ${button}: ${problem}`);
+        lines.push(`- ❌ **${width}px** ${button}: ${problem}`);
       }
     }
     await context.close();
