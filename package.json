@@ -1,6 +1,6 @@
 {
   "name": "dc-toolkit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the port comparison, the contact form's server side and robots.txt.",
   "license": "MIT",
   "type": "module",
@@ -48,6 +48,7 @@
     "playwright": "^1.63.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "sharp": "^0.35.4",
     "wrangler": "^4.135.0"
   },
   "devDependencies": {
@@ -60,7 +61,11 @@
     "playwright": "^1.63.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "sharp": "^0.35.4",
     "typescript": "^6.0.3",
     "wrangler": "^4.135.0"
+  },
+  "dependencies": {
+    "pixelmatch": "^7.2.0"
   }
 }

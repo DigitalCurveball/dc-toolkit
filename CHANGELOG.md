@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 (2026-10-11)
+
+- `dc-qa` checks **menu buttons** at every width where one shows: Enter opens the menu with `aria-expanded` saying so, Tab goes from the button into the menu, Escape closes it and puts focus back on the button, and two clicks open and close it. axe sees none of that, and an approved concept had its menu earlier in the source than its button, so Tab skipped it. It checks buttons with `aria-expanded` and `aria-controls` whose target is a `<nav>`, holds one or sits in one. A site that passed before can now fail, hence the minor version. Tests in `test/menu-buttons.test.mjs`.
+- **`dc-compare --shots <dir>`**, new: each band of the page (the banner, header, each section, the footer) photographed in the build and the concept at each width, compared pixel by pixel with photos left out, and written to a report at `<dir>/index.html` that reads on a phone. It catches what moves no box: a colour, a border, a weight, a crop. Each band is put on a whole pixel before it is photographed, so identical text paints identically however far down the page it starts. Tests in `test/shots.test.mjs`, one of them end to end.
+- New dependency `pixelmatch`, and `sharp` as a peer, which every site already has directly (the stack's traps).
+
 ## 0.2.0 (2026-10-07)
 
 - `dc-qa` checks for **covered text** at every width: a line of visible text that another element paints over, such as copy under a positioned photo. Neither the overflow check nor axe sees it, and an approved concept had it. It fails only when what is on top paints there (an image, or a background inside a positioned element or other stacking context), so transparent overlays, visually hidden text, clipped wordmarks and closed `<details>` pass. A site that passed before can now fail, hence the minor version. Tests in `test/covered-text.test.mjs`, in a real browser, so the test workflow now installs Chromium.

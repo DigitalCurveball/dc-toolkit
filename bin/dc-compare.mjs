@@ -8,6 +8,8 @@
 //   --widths 320,400,…         the default is 320, 400, 640, 768, 1024, 1280, 1440;
 //                              add the concept's own breakpoints
 //   --tolerance 1              pixels of difference ignored (the default: sub-pixel rounding)
+//   --shots <dir>              also photograph both pages, band by band, compare the pictures
+//                              pixel by pixel, and write a report to <dir>/index.html
 //
 // Every class the two pages share is compared, element by element in document order. Nothing
 // needs listing because a port keeps the concept's class names: its CSS is lifted as it stands.
@@ -18,10 +20,19 @@
 //
 // It reports and never fails (exit 0): a change made to the concept on purpose shows here for
 // good, so the report is read, not gated on.
+//
+// With --shots, each band of the page (the banner, header, each section, the footer) is also
+// photographed in both and compared pixel by pixel (src/shots.mjs), which catches what moves no
+// box: a colour, a border, a weight, a crop. The pictures go into <dir>/<page>/ and the report,
+// <dir>/index.html, covers every page compared into that folder (src/report.mjs). Below 1024px
+// they are taken at twice the pixels, so they are sharp on a phone's screen.
 
-import { dirname, basename } from 'node:path';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, basename, join } from 'node:path';
 import { chromium } from 'playwright';
+import { writeReport } from '../src/report.mjs';
 import { serve } from '../src/serve.mjs';
+import { alignBands, compareBand, encode, findBands } from '../src/shots.mjs';
 
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -34,6 +45,7 @@ const dir = arg('dir', 'dist/client');
 const path = arg('path', '/');
 const widths = arg('widths', '320,400,640,768,1024,1280,1440').split(',').map(Number);
 const tolerance = Number(arg('tolerance', '1'));
+const shotsDir = arg('shots');
 if (!conceptFile) {
   console.error('Need --concept <file>, such as public/concepts/concept-a.html');
   process.exit(2);
@@ -82,8 +94,101 @@ async function measureAt(url, width) {
   return result;
 }
 
+/**
+ * The page at `width`, photographed band by band once every photo has loaded, lazy ones too, so
+ * none is blank in its picture.
+ */
+async function photographAt(url, width) {
+  const scale = width < 1024 ? 2 : 1;
+  const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: scale, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(async () => {
+    for (const img of document.images) img.loading = 'eager';
+    await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+    await document.fonts.ready;
+  });
+  const found = await page.evaluate(findBands);
+  const margin = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).marginTop) || 0);
+  for (const band of found.bands) {
+    // Chrome puts each line of text on a whole pixel, counted from wherever it falls, so a band
+    // that starts a fraction of a pixel lower in one page than the other paints identical lines a
+    // pixel apart, one line in two. Moving the whole page down by less than a pixel, until the
+    // band's top is on a whole CSS pixel, makes the same content paint the same in both pages. A
+    // whole device pixel is not enough at 2x: the glyphs' edges still differed.
+    const top = Math.ceil(band.top - 0.001);
+    await page.evaluate((px) => { document.documentElement.style.marginTop = `${px}px`; }, margin + top - band.top);
+    band.height = Math.round(band.height * scale) / scale;
+    // fullPage, so the clip is in page coordinates and nothing scrolls under a sticky header.
+    band.png = await page.screenshot({
+      fullPage: true, clip: { x: 0, y: top, width, height: band.height }, animations: 'disabled', caret: 'hide',
+    });
+  }
+  await context.close();
+  return { ...found, scale };
+}
+
+const slug = path === '/' ? 'home' : path.replace(/^\/+|\/+$/g, '').replaceAll('/', '-');
+const shotsFor = {};
+let meta = {};
+
+async function pictures(width) {
+  const [concept, built] = [await photographAt(pages.concept, width), await photographAt(pages.built, width)];
+  meta = { title: built.title, siteName: built.siteName };
+  const pairs = alignBands(concept.bands, built.bands);
+  const seen = {};
+  const out = [];
+  for (const [i, pair] of pairs.entries()) {
+    const keyed = `${pair.concept?.weak ?? ''}|${pair.build?.weak ?? ''}`;
+    seen[keyed] = (seen[keyed] ?? 0) + 1;
+    const band = { key: `${keyed}#${seen[keyed]}`, label: (pair.build ?? pair.concept).label };
+    const save = async (name, image, h) => {
+      const { data, ext } = await encode(image);
+      const file = `${slug}/${width}-${String(i + 1).padStart(2, '0')}-${name}.${ext}`;
+      await writeFile(join(shotsDir, file), data);
+      return { file, w: width, h: Math.round(h) };
+    };
+    if (pair.concept && pair.build) {
+      const photos = [...pair.concept.photos, ...pair.build.photos];
+      const result = await compareBand(pair.concept.png, pair.build.png, photos, built.scale);
+      Object.assign(band, { different: result.different, compared: result.compared });
+      band.status = result.different ? 'differs' : 'match';
+      band.build = await save('build', pair.build.png, pair.build.height);
+      if (result.different) {
+        band.concept = await save('concept', pair.concept.png, pair.concept.height);
+        band.diff = await save('diff', result.diff, Math.max(pair.concept.height, pair.build.height));
+      }
+    } else if (pair.build) {
+      band.status = 'new';
+      band.build = await save('build', pair.build.png, pair.build.height);
+    } else {
+      band.status = 'gone';
+      band.concept = await save('concept', pair.concept.png, pair.concept.height);
+    }
+    out.push(band);
+  }
+  shotsFor[width] = out;
+  const differ = out.filter((band) => band.status !== 'match');
+  return differ.length
+    ? `  Pictures: ${differ.length} of ${out.length} bands differ: ${differ.map((band) => `${band.label} (${band.status === 'differs' ? `${((band.different / band.compared) * 100).toFixed(2)}%` : band.status})`).join(', ')}`
+    : `  Pictures: all ${out.length} bands match`;
+}
+
+// A page compared again keeps its place in the report, which is the order pages were first run.
+let firstRan = new Date().toISOString();
+if (shotsDir) {
+  try {
+    firstRan = JSON.parse(await readFile(join(shotsDir, slug, 'data.json'), 'utf8')).ran;
+  } catch {
+    // Not compared into this folder before.
+  }
+  await rm(join(shotsDir, slug), { recursive: true, force: true });
+  await mkdir(join(shotsDir, slug), { recursive: true });
+}
+
 const round = (n) => Math.round(n);
 const lines = [`## Port against concept\n\nConcept: ${conceptFile}\nBuild: ${dir} ${path}\n`];
+const boxesFor = {};
 let listedOnlyOnce = false;
 let differences = 0;
 
@@ -136,10 +241,17 @@ for (const width of widths) {
   lines.push(found.length
     ? `**${width}px**: ${found.length} of ${compared} boxes differ${scroll}\n${found.join('\n')}`
     : `${width}px: all ${compared} boxes match${scroll}`);
+  boxesFor[width] = found.map((line) => line.trim());
+  if (shotsDir) lines.push(await pictures(width));
 }
 
 await browser.close();
 conceptServer.close();
 builtServer.close();
 lines.push('', differences ? `${differences} difference(s) to check against the concept, at the widths above.` : 'The build matches the concept at every width.');
+if (shotsDir) {
+  const data = { slug, path, concept: conceptFile, ...meta, ran: firstRan, widths, shots: shotsFor, boxes: boxesFor };
+  await writeFile(join(shotsDir, slug, 'data.json'), `${JSON.stringify(data, null, 2)}\n`);
+  lines.push(`Pictures and the report: ${await writeReport(shotsDir)}`);
+}
 console.log(lines.join('\n'));

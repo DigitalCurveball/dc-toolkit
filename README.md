@@ -10,7 +10,7 @@ It ships source (`.mjs`, `.ts`, `.astro`) with no build step, and is installed f
 
 where `vX.Y.Z` is the newest tag, the top entry in `CHANGELOG.md`.
 
-Its peers (Astro, the Cloudflare adapter, React, Keystatic, the sitemap, Playwright, axe and Wrangler) are the site's own dependencies, at the site's versions. `astro` being a peer is also what makes Astro compile this package's files.
+Its peers (Astro, the Cloudflare adapter, React, Keystatic, the sitemap, Playwright, axe, sharp and Wrangler) are the site's own dependencies, at the site's versions. `astro` being a peer is also what makes Astro compile this package's files.
 
 MIT licence.
 
@@ -46,7 +46,7 @@ What stays in each site: `site`, fonts, Markdown settings and its own integratio
 
 ## The checks
 
-`dc-qa` runs axe-core (WCAG 2 A and AA), a horizontal-overflow check and a covered-text check at 320, 400, 768 and 1280px, plus link, heading-order and meta checks once per page. axe runs at the narrowest and widest widths only; the middle two rarely differ and each scan costs a second or two. A second job in the QA workflow runs Lighthouse against the budgets in the site's `lighthouserc.json` (performance 95, accessibility 100, SEO 95), taking the median of three runs because a single run on a shared runner is noisy.
+`dc-qa` runs axe-core (WCAG 2 A and AA), a horizontal-overflow check, a covered-text check and a menu-button check at 320, 400, 768 and 1280px, plus link, heading-order and meta checks once per page. axe runs at the narrowest and widest widths only; the middle two rarely differ and each scan costs a second or two. A second job in the QA workflow runs Lighthouse against the budgets in the site's `lighthouserc.json` (performance 95, accessibility 100, SEO 95), taking the median of three runs because a single run on a shared runner is noisy.
 
 | When | Target | How |
 |---|---|---|
@@ -95,6 +95,8 @@ A careful manual pass on one site found three contrast failures where axe report
 
 Nor does axe see **text another element paints over**, and neither does the overflow check: an approved concept passed both with its hero photo covering the ends of the intro's lines from 800 to 1440px, because the photo's box was positioned (for its absolutely placed image) and the copy beside it was not. So `dc-qa` asks, at three points along each line of visible text, what is on top (`src/covered-text.mjs`). It fails only when that thing paints there: an image, or a background inside a positioned element or another stacking context. An ordinary block's background is painted beneath all text, so a block pulled up by a negative margin passes, as do transparent overlays (a stretched link), visually hidden text, a wordmark clipped by its box and the answer in a closed `<details>`. Each line is scrolled to the middle of the viewport first, where a sticky header is not in the way.
 
+Nor does axe see whether **a Menu button's menu can be used from the keyboard**. It checks the button's name and its `aria-expanded`, and an approved concept passed with its menu earlier in the source than the button, moved below the header by CSS `order`: a keyboard user who opened it tabbed straight past it into the page. So at each width where a Menu button shows, `dc-qa` presses it (`src/menu-buttons.mjs`): Enter must open the menu with `aria-expanded` saying so, Tab must go from the button into it, Escape must close it and put focus back on the button, and two clicks must open and close it. It checks buttons with `aria-expanded` and `aria-controls` whose target is a `<nav>`, holds one or sits in one; a disclosure that isn't a menu, such as a question and its answer, is left alone, since nobody expects Escape to close one.
+
 ### Comparing a port with its concept
 
 `dc-compare` is the side-by-side pass of a port, measured rather than eyeballed. After a build:
@@ -107,6 +109,18 @@ pnpm exec dc-compare --concept public/concepts/pages/about.html --path /about/
 It loads both at 320, 400, 640, 768, 1024, 1280 and 1440px (`--widths` takes the concept's own breakpoints too) and compares every element of every class the two pages share, in document order: a port lifts the concept's CSS as it stands, so the class names match and nothing needs listing. A box's x, width and height are compared as they are, and its position down the page from the top of its section, so a change above does not flag everything below. It lists classes found in only one page, which is how a missing part shows, and an element shown in one and hidden in the other. Differences within a pixel are ignored (`--tolerance`).
 
 It reports and never fails: a change made to the concept on purpose shows in it for good. On the first port it was run on, every box matched except the three changes made deliberately, which also confirmed the self-hosted fonts set text at the concept's widths.
+
+**The pictures**, with `--shots <dir>`, catch what moves no box: a colour, a border, a shadow, a weight, a crop. Each band of both pages is photographed at each width and compared pixel by pixel ([pixelmatch](https://github.com/mapbox/pixelmatch)). A band is a child of `<body>` or `<main>`: the banner, the header, each section, the footer. The bands tile the page, so nothing goes uncompared, and comparing band by band keeps a difference where it is, as the boxes do.
+
+```sh
+pnpm exec dc-compare --concept public/concepts/pages/about.html --path /about/ --widths 320,400,768,1024,1280,1440 --shots compare
+```
+
+- **The report** is `<dir>/index.html`, and covers every page compared into that folder, in the order first run, so a checkpoint's pages run one after another make one report. A table of bands against widths comes first; then each width's bands stacked in page order, so they read as the whole page, with the concept and a difference picture under any band that differs. It is written to be read on a phone, and to the rules of a page published as an artifact on claude.ai (strip the outer `<html>`, `<head>` and `<body>` tags to publish it), so a checkpoint can be looked at away from the desk.
+- **Photos are left out of the count**, and shown pale blue in the difference. The concept loads a photo library's JPEGs and the build serves its own resized copies, so every photo would differ a little everywhere. They stay in the pictures, for their crops to be looked at.
+- **Each band is put on a whole pixel first.** Chrome puts each line of text on a whole pixel counted from where it falls, so a band starting a fraction of a pixel lower in one page painted identical lines a pixel apart, one line in two. Before each band is photographed, the page is moved down by less than a pixel, until the band's top is on a whole CSS pixel (a whole device pixel was not enough at 2x).
+- Below 1024px the pictures are taken at twice the pixels, so they are sharp on a phone's screen. Lazy photos are loaded first, so none is blank.
+- Band pairs are found in page order by tag, classes and label, then by tag and classes, then by tag alone, so a section whose classes changed is still compared with its counterpart; one in only one page is listed as New or Gone.
 
 ## The QA workflow
 
