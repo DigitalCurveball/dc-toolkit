@@ -113,13 +113,17 @@ It reports and never fails: a change made to the concept on purpose shows in it 
 **The pictures**, with `--shots <dir>`, catch what moves no box: a colour, a border, a shadow, a weight, a crop. Each band of both pages is photographed at each width and compared pixel by pixel ([pixelmatch](https://github.com/mapbox/pixelmatch)). A band is a child of `<body>` or `<main>`: the banner, the header, each section, the footer. The bands tile the page, so nothing goes uncompared, and comparing band by band keeps a difference where it is, as the boxes do.
 
 ```sh
-pnpm exec dc-compare --concept public/concepts/pages/about.html --path /about/ --widths 320,400,768,1024,1280,1440 --shots compare
+pnpm exec dc-compare --concept public/concepts/pages/about.html --path /about/ --widths 320,400,768,1024,1280,1440 --shots /tmp/port-check
+pnpm exec dc-compare --path /services/second-service/ --widths 320,400,768,1024,1280,1440 --shots /tmp/port-check   # no concept drew it
 ```
+
+The folder goes outside the repo: the pictures are for looking at, not for committing.
 
 - **The report** is `<dir>/index.html`, and covers every page compared into that folder, in the order first run, so a checkpoint's pages run one after another make one report. A table of bands against widths comes first; then each width's bands stacked in page order, so they read as the whole page, with the concept and a difference picture under any band that differs. It is written to be read on a phone, and to the rules of a page published as an artifact on claude.ai (strip the outer `<html>`, `<head>` and `<body>` tags to publish it), so a checkpoint can be looked at away from the desk.
 - **Photos are left out of the count**, and shown pale blue in the difference. The concept loads a photo library's JPEGs and the build serves its own resized copies, so every photo would differ a little everywhere. They stay in the pictures, for their crops to be looked at.
 - **Each band is put on a whole pixel first.** Chrome puts each line of text on a whole pixel counted from where it falls, so a band starting a fraction of a pixel lower in one page painted identical lines a pixel apart, one line in two. Before each band is photographed, the page is moved down by less than a pixel, until the band's top is on a whole CSS pixel (a whole device pixel was not enough at 2x).
 - Below 1024px the pictures are taken at twice the pixels, so they are sharp on a phone's screen. Lazy photos are loaded first, so none is blank.
+- **A page no concept drew**, such as one of several detail pages made from a designed pattern, is photographed alone: `--shots` without `--concept`. It goes into the same report, which says so, with its bands at each width and nothing to compare.
 - Band pairs are found in page order by tag, classes and label, then by tag and classes, then by tag alone, so a section whose classes changed is still compared with its counterpart; one in only one page is listed as New or Gone.
 
 ## The QA workflow

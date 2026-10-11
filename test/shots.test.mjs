@@ -89,7 +89,7 @@ test('bands tile the page, are named, and carry their photos', async () => {
   assert.equal(bands[3].strong, 'section.band|');
 });
 
-test('dc-compare --shots: a band below a taller one still matches, and a recoloured one is found', async () => {
+test('dc-compare --shots: a band below a taller one still matches, a recoloured one is found, and a page no concept drew is photographed', async () => {
   // The concept's first section is 100.4px tall and the build's 112.7px, so everything below sits
   // a different fraction of a pixel down. Without putting each band on a whole pixel first, the
   // lines of the identical section below would differ one in two.
@@ -114,8 +114,22 @@ test('dc-compare --shots: a band below a taller one still matches, and a recolou
   for (const width of [400, 1280]) {
     assert.deepEqual(data.shots[width].map((b) => `${b.label} ${b.status}`), ['First differs', 'Second match', 'Third differs']);
   }
+
+  // A page no concept drew, into the same folder: photographed alone, and in the same report.
+  await mkdir(join(dir, 'build', 'other'));
+  await writeFile(join(dir, 'build', 'other', 'index.html'), page(80, '#e9c46a'));
+  await promisify(execFile)(process.execPath, [
+    'bin/dc-compare.mjs', '--dir', join(dir, 'build'), '--path', '/other/', '--widths', '400', '--shots', join(dir, 'shots'),
+  ]);
+  const other = JSON.parse(await readFile(join(dir, 'shots', 'other', 'data.json'), 'utf8'));
+  assert.equal(other.concept, undefined);
+  assert.deepEqual(other.shots[400].map((b) => `${b.label} ${b.status}`), ['First alone', 'Second alone', 'Third alone']);
+
   const report = await readFile(join(dir, 'shots', 'index.html'), 'utf8');
   assert.match(report, /<title>Test site port check<\/title>/);
   assert.match(report, /id="home-400-2"/);
+  assert.match(report, /id="other-400-2"/);
+  assert.match(report, /No concept drew this page/);
+  assert.ok(report.indexOf('id="home"') < report.indexOf('id="other"'));
   await rm(dir, { recursive: true });
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 (2026-10-11)
+
+- `dc-compare --shots` without `--concept` photographs a page no concept drew, such as one of several detail pages made from a designed pattern, into the same report, which says so. The pages a set never drew are the ones most in need of a look.
+
 ## 0.3.0 (2026-10-11)
 
 - `dc-qa` checks **menu buttons** at every width where one shows: Enter opens the menu with `aria-expanded` saying so, Tab goes from the button into the menu, Escape closes it and puts focus back on the button, and two clicks open and close it. axe sees none of that, and an approved concept had its menu earlier in the source than its button, so Tab skipped it. It checks buttons with `aria-expanded` and `aria-controls` whose target is a `<nav>`, holds one or sits in one. A site that passed before can now fail, hence the minor version. Tests in `test/menu-buttons.test.mjs`.

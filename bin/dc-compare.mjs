@@ -9,7 +9,8 @@
 //                              add the concept's own breakpoints
 //   --tolerance 1              pixels of difference ignored (the default: sub-pixel rounding)
 //   --shots <dir>              also photograph both pages, band by band, compare the pictures
-//                              pixel by pixel, and write a report to <dir>/index.html
+//                              pixel by pixel, and write a report to <dir>/index.html; without
+//                              --concept, photograph a page no concept drew, alone
 //
 // Every class the two pages share is compared, element by element in document order. Nothing
 // needs listing because a port keeps the concept's class names: its CSS is lifted as it stands.
@@ -25,7 +26,9 @@
 // photographed in both and compared pixel by pixel (src/shots.mjs), which catches what moves no
 // box: a colour, a border, a weight, a crop. The pictures go into <dir>/<page>/ and the report,
 // <dir>/index.html, covers every page compared into that folder (src/report.mjs). Below 1024px
-// they are taken at twice the pixels, so they are sharp on a phone's screen.
+// they are taken at twice the pixels, so they are sharp on a phone's screen. A page the set never
+// drew (one of several made from a designed pattern) has no concept: with --shots and no
+// --concept, it is photographed alone, so it is in the report to be looked at all the same.
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
@@ -46,8 +49,8 @@ const path = arg('path', '/');
 const widths = arg('widths', '320,400,640,768,1024,1280,1440').split(',').map(Number);
 const tolerance = Number(arg('tolerance', '1'));
 const shotsDir = arg('shots');
-if (!conceptFile) {
-  console.error('Need --concept <file>, such as public/concepts/concept-a.html');
+if (!conceptFile && !shotsDir) {
+  console.error('Need --concept <file>, such as public/concepts/concept-a.html, or --shots <dir> to photograph a page no concept drew');
   process.exit(2);
 }
 
@@ -77,10 +80,10 @@ function measure() {
   return { boxes, scrollWidth: document.documentElement.scrollWidth };
 }
 
-const conceptServer = await serve(dirname(conceptFile));
+const conceptServer = conceptFile ? await serve(dirname(conceptFile)) : null;
 const builtServer = await serve(dir);
 const pages = {
-  concept: `${conceptServer.origin}/${basename(conceptFile)}`,
+  concept: conceptServer && `${conceptServer.origin}/${basename(conceptFile)}`,
   built: new URL(path, builtServer.origin).href,
 };
 const browser = await chromium.launch();
@@ -133,9 +136,10 @@ const shotsFor = {};
 let meta = {};
 
 async function pictures(width) {
-  const [concept, built] = [await photographAt(pages.concept, width), await photographAt(pages.built, width)];
+  const concept = pages.concept && await photographAt(pages.concept, width);
+  const built = await photographAt(pages.built, width);
   meta = { title: built.title, siteName: built.siteName };
-  const pairs = alignBands(concept.bands, built.bands);
+  const pairs = concept ? alignBands(concept.bands, built.bands) : built.bands.map((build) => ({ build }));
   const seen = {};
   const out = [];
   for (const [i, pair] of pairs.entries()) {
@@ -159,7 +163,7 @@ async function pictures(width) {
         band.diff = await save('diff', result.diff, Math.max(pair.concept.height, pair.build.height));
       }
     } else if (pair.build) {
-      band.status = 'new';
+      band.status = concept ? 'new' : 'alone';
       band.build = await save('build', pair.build.png, pair.build.height);
     } else {
       band.status = 'gone';
@@ -168,6 +172,7 @@ async function pictures(width) {
     out.push(band);
   }
   shotsFor[width] = out;
+  if (!concept) return `${width}px: ${out.length} bands photographed`;
   const differ = out.filter((band) => band.status !== 'match');
   return differ.length
     ? `  Pictures: ${differ.length} of ${out.length} bands differ: ${differ.map((band) => `${band.label} (${band.status === 'differs' ? `${((band.different / band.compared) * 100).toFixed(2)}%` : band.status})`).join(', ')}`
@@ -187,12 +192,16 @@ if (shotsDir) {
 }
 
 const round = (n) => Math.round(n);
-const lines = [`## Port against concept\n\nConcept: ${conceptFile}\nBuild: ${dir} ${path}\n`];
+const lines = [`## Port against concept\n\nConcept: ${conceptFile ?? 'none, so the build is photographed alone'}\nBuild: ${dir} ${path}\n`];
 const boxesFor = {};
 let listedOnlyOnce = false;
 let differences = 0;
 
 for (const width of widths) {
+  if (!conceptFile) {
+    lines.push(await pictures(width));
+    continue;
+  }
   const [concept, built] = [await measureAt(pages.concept, width), await measureAt(pages.built, width)];
   const shared = Object.keys(concept.boxes).filter((name) => built.boxes[name]);
 
@@ -246,9 +255,9 @@ for (const width of widths) {
 }
 
 await browser.close();
-conceptServer.close();
+conceptServer?.close();
 builtServer.close();
-lines.push('', differences ? `${differences} difference(s) to check against the concept, at the widths above.` : 'The build matches the concept at every width.');
+if (conceptFile) lines.push('', differences ? `${differences} difference(s) to check against the concept, at the widths above.` : 'The build matches the concept at every width.');
 if (shotsDir) {
   const data = { slug, path, concept: conceptFile, ...meta, ran: firstRan, widths, shots: shotsFor, boxes: boxesFor };
   await writeFile(join(shotsDir, slug, 'data.json'), `${JSON.stringify(data, null, 2)}\n`);

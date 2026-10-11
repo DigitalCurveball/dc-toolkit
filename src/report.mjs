@@ -29,6 +29,7 @@ const STATUS = {
   differs: { cell: (band) => percent(band, true), caption: (band) => `${percent(band)} differs` },
   new: { cell: 'New', caption: () => 'Only in the build' },
   gone: { cell: 'Gone', caption: () => 'Only in the concept' },
+  alone: { cell: '·', caption: () => '' },
 };
 const say = (band, part) => {
   const value = STATUS[band.status][part];
@@ -52,13 +53,29 @@ function bandFigure(page, width, band, i) {
     : band.status === 'gone'
       ? picture(band.concept, `${band.label}, concept`)
       : picture(band.build, `${band.label}, build`);
+  const pill = band.status === 'alone' ? '' : `<span class="pill ${band.status}">${esc(say(band, 'caption'))}</span> `;
   return `<figure class="band ${band.status}" id="${page.slug}-${width}-${i}">
-    <figcaption><span class="pill ${band.status}">${esc(say(band, 'caption'))}</span> ${esc(band.label)}${esc(heightNote(band))}</figcaption>
+    <figcaption>${pill}${esc(band.label)}${esc(heightNote(band))}</figcaption>
     ${pictures}
   </figure>`;
 }
 
+/** A page no concept drew: its bands at each width, to be looked at, with nothing to compare. */
+function alonePage(page) {
+  const widths = page.widths.map((width) => `<details class="width" id="${page.slug}-${width}">
+    <summary>${width}px <span class="count">${page.shots[width].length} bands</span></summary>
+    ${page.shots[width].map((band, i) => bandFigure(page, width, band, i)).join('\n')}
+  </details>`).join('\n');
+  return `<section class="page" id="${page.slug}" aria-labelledby="${page.slug}-h">
+  <h2 id="${page.slug}-h">${esc(page.path === '/' ? 'Home page' : page.path)}</h2>
+  <p class="meta">${esc(page.title)}</p>
+  <p class="summary">No concept drew this page, so its pictures are the build alone, to be looked at.</p>
+  ${widths}
+</section>`;
+}
+
 function pageSection(page) {
+  if (!page.concept) return alonePage(page);
   // The table's rows: every band seen at any width, in page order.
   const rows = [];
   for (const width of page.widths) {
