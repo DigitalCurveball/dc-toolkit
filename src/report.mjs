@@ -2,6 +2,10 @@
 // order they were run, as one page that reads as well on a phone as at a desk. Each run writes
 // its page's pictures and a data.json into <dir>/<page>/, then rewrites <dir>/index.html from
 // every data.json there, so comparing a checkpoint's pages one after another builds one report.
+// It also writes <dir>/review.html, the same report picturing only what needs a look: a band
+// that differs from its concept (the concept, the build and the difference), and each page no
+// concept drew, whole. A band that matches is a tick in its page's table. That is the one to
+// send: a checkpoint where everything matches is a few tables, and the pictures stay few.
 //
 // A table comes first, each band against each width; then each width's bands stacked in page
 // order, so they read as the whole page, with the concept and the difference under any band that
@@ -60,10 +64,11 @@ function bandFigure(page, width, band, i) {
   </figure>`;
 }
 
-/** A page no concept drew: its bands at each width, to be looked at, with nothing to compare. */
+/** A page no concept drew: the whole page at each width, to be looked at, with nothing to compare. */
 function alonePage(page) {
+  const count = (n) => (n === 1 ? 'the whole page' : `${n} bands`);
   const widths = page.widths.map((width) => `<details class="width" id="${page.slug}-${width}">
-    <summary>${width}px <span class="count">${page.shots[width].length} bands</span></summary>
+    <summary>${width}px <span class="count">${count(page.shots[width].length)}</span></summary>
     ${page.shots[width].map((band, i) => bandFigure(page, width, band, i)).join('\n')}
   </details>`).join('\n');
   return `<section class="page" id="${page.slug}" aria-labelledby="${page.slug}-h">
@@ -74,7 +79,8 @@ function alonePage(page) {
 </section>`;
 }
 
-function pageSection(page) {
+/** A page against its concept. With `review`, only the bands that differ are pictured. */
+function pageSection(page, review) {
   if (!page.concept) return alonePage(page);
   // The table's rows: every band seen at any width, in page order.
   const rows = [];
@@ -99,16 +105,18 @@ function pageSection(page) {
   const body = rows.map((row) => `<tr><th scope="row">${esc(row.label)}</th>${page.widths.map((w) => {
     const found = at(row, w);
     if (!found) return '<td class="none">–</td>';
+    if (review && found.band.status === 'match') return '<td class="match">✓</td>';
     return `<td class="${found.band.status}"><a href="#${page.slug}-${w}-${found.i}">${esc(say(found.band, 'cell'))}</a></td>`;
   }).join('')}</tr>`).join('\n');
 
-  const widths = page.widths.map((width) => {
+  const shown = review ? page.widths.filter((width) => page.shots[width].some((band) => band.status !== 'match')) : page.widths;
+  const widths = shown.map((width) => {
     const bands = page.shots[width];
     const differ = bands.filter((band) => band.status !== 'match').length;
     const boxes = page.boxes?.[width] ?? [];
     return `<details class="width" id="${page.slug}-${width}">
     <summary>${width}px <span class="count">${differ ? `${differ} of ${bands.length} bands differ` : 'all bands match'}</span></summary>
-    ${bands.map((band, i) => bandFigure(page, width, band, i)).join('\n')}
+    ${bands.map((band, i) => (review && band.status === 'match' ? '' : bandFigure(page, width, band, i))).join('\n')}
     <details class="boxes"><summary>Box measurements at ${width}px</summary><pre>${esc(boxes.length ? boxes.join('\n') : 'Every box matches.')}</pre></details>
   </details>`;
   }).join('\n');
@@ -125,7 +133,10 @@ function pageSection(page) {
 </section>`;
 }
 
-/** Rewrites <dir>/index.html from every page's data.json in <dir>. */
+/**
+ * Rewrites <dir>/index.html and <dir>/review.html from every page's data.json in <dir>, and says
+ * how many pictures the review holds.
+ */
 export async function writeReport(dir) {
   const pages = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -145,7 +156,7 @@ export async function writeReport(dir) {
     ? `<nav aria-label="Pages"><ul>${pages.map((page) => `<li><a href="#${page.slug}">${esc(page.path === '/' ? 'Home page' : page.path)}</a></li>`).join('')}</ul></nav>`
     : '';
 
-  const html = `<!doctype html>
+  const render = (review) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -225,8 +236,9 @@ export async function writeReport(dir) {
   <h1>${esc(title)}</h1>
   <p class="intro">Each page of the build beside its approved concept, band by band, at ${widths.join(', ')}px wide. Written ${esc(written)}.</p>
   <p class="intro">A tick means a band matches the concept. A percentage is the share of a band's pixels that differ, not counting photos, which are left out because the build serves its own copies; their crops are there to be looked at. New is only in the build, Gone only in the concept. Tap a cell to see the band, and a picture to see it full size.</p>
+  ${review ? '<p class="intro">Only what needs a look is pictured: each band that differs, and each page no concept drew. A band that matches is a tick, with no picture.</p>' : ''}
   ${contents}
-  ${pages.map(pageSection).join('\n')}
+  ${pages.map((p) => pageSection(p, review)).join('\n')}
 </main>
 <script>
   // A link to a band inside a closed width opens the width first, in every browser.
@@ -245,6 +257,9 @@ export async function writeReport(dir) {
 </body>
 </html>
 `;
-  await writeFile(join(dir, 'index.html'), html);
-  return join(dir, 'index.html');
+  const reviewHtml = render(true);
+  await writeFile(join(dir, 'index.html'), render(false));
+  await writeFile(join(dir, 'review.html'), reviewHtml);
+  const pictures = new Set([...reviewHtml.matchAll(/<img src="([^"]+)"/g)].map((m) => m[1])).size;
+  return { index: join(dir, 'index.html'), review: join(dir, 'review.html'), pictures };
 }

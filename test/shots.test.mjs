@@ -89,7 +89,7 @@ test('bands tile the page, are named, and carry their photos', async () => {
   assert.equal(bands[3].strong, 'section.band|');
 });
 
-test('dc-compare --shots: a band below a taller one still matches, a recoloured one is found, and a page no concept drew is photographed', async () => {
+test('dc-compare --shots: a band below a taller one still matches, a recoloured one is found, a page no concept drew is photographed whole, and the review pictures only those', async () => {
   // The concept's first section is 100.4px tall and the build's 112.7px, so everything below sits
   // a different fraction of a pixel down. Without putting each band on a whole pixel first, the
   // lines of the identical section below would differ one in two.
@@ -123,13 +123,23 @@ test('dc-compare --shots: a band below a taller one still matches, a recoloured 
   ]);
   const other = JSON.parse(await readFile(join(dir, 'shots', 'other', 'data.json'), 'utf8'));
   assert.equal(other.concept, undefined);
-  assert.deepEqual(other.shots[400].map((b) => `${b.label} ${b.status}`), ['First alone', 'Second alone', 'Third alone']);
+  assert.deepEqual(other.shots[400].map((b) => `${b.label} ${b.status}`), ['The whole page alone']);
+  assert.equal(other.shots[400][0].build.file, 'other/400-page.webp');
 
   const report = await readFile(join(dir, 'shots', 'index.html'), 'utf8');
   assert.match(report, /<title>Test site port check<\/title>/);
-  assert.match(report, /id="home-400-2"/);
-  assert.match(report, /id="other-400-2"/);
+  assert.match(report, /id="home-400-1"/);
+  assert.match(report, /id="other-400-0"/);
   assert.match(report, /No concept drew this page/);
   assert.ok(report.indexOf('id="home"') < report.indexOf('id="other"'));
+
+  // The review pictures what differs and the page no concept drew, and leaves out what matches.
+  const review = await readFile(join(dir, 'shots', 'review.html'), 'utf8');
+  assert.match(review, /id="home-400-0"/);
+  assert.match(review, /id="home-1280-2"/);
+  assert.doesNotMatch(review, /id="home-400-1"/);
+  assert.doesNotMatch(review, /home\/400-02-build/);
+  assert.match(review, /<td class="match">✓<\/td>/);
+  assert.match(review, /src="other\/400-page\.webp"/);
   await rm(dir, { recursive: true });
 });

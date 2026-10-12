@@ -9,8 +9,9 @@
 //                              add the concept's own breakpoints
 //   --tolerance 1              pixels of difference ignored (the default: sub-pixel rounding)
 //   --shots <dir>              also photograph both pages, band by band, compare the pictures
-//                              pixel by pixel, and write a report to <dir>/index.html; without
-//                              --concept, photograph a page no concept drew, alone
+//                              pixel by pixel, and write a report to <dir>/index.html and the
+//                              part to send, <dir>/review.html; without --concept, photograph a
+//                              page no concept drew, whole
 //
 // Every class the two pages share is compared, element by element in document order. Nothing
 // needs listing because a port keeps the concept's class names: its CSS is lifted as it stands.
@@ -25,10 +26,12 @@
 // With --shots, each band of the page (the banner, header, each section, the footer) is also
 // photographed in both and compared pixel by pixel (src/shots.mjs), which catches what moves no
 // box: a colour, a border, a weight, a crop. The pictures go into <dir>/<page>/ and the report,
-// <dir>/index.html, covers every page compared into that folder (src/report.mjs). Below 1024px
-// they are taken at twice the pixels, so they are sharp on a phone's screen. A page the set never
-// drew (one of several made from a designed pattern) has no concept: with --shots and no
-// --concept, it is photographed alone, so it is in the report to be looked at all the same.
+// <dir>/index.html, covers every page compared into that folder (src/report.mjs). Beside it,
+// <dir>/review.html pictures only what needs a look, for sending: the bands that differ, and the
+// pages no concept drew. Below 1024px the pictures are taken at twice the pixels, so they are
+// sharp on a phone's screen. A page the set never drew (one of several made from a designed
+// pattern) has no concept: with --shots and no --concept, it is photographed whole, one picture
+// per width, since nothing needs lining up, so it is in the report to be looked at all the same.
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
@@ -131,15 +134,42 @@ async function photographAt(url, width) {
   return { ...found, scale };
 }
 
+/** A page no concept drew, at `width`: one picture of the whole page, photos loaded. */
+async function photographWhole(url, width) {
+  const scale = width < 1024 ? 2 : 1;
+  const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: scale, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(async () => {
+    for (const img of document.images) img.loading = 'eager';
+    await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+    await document.fonts.ready;
+  });
+  const { title, siteName } = await page.evaluate(findBands);
+  const png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  await context.close();
+  return { title, siteName, png, height, scale };
+}
+
 const slug = path === '/' ? 'home' : path.replace(/^\/+|\/+$/g, '').replaceAll('/', '-');
 const shotsFor = {};
 let meta = {};
 
 async function pictures(width) {
-  const concept = pages.concept && await photographAt(pages.concept, width);
+  if (!pages.concept) {
+    const whole = await photographWhole(pages.built, width);
+    meta = { title: whole.title, siteName: whole.siteName };
+    const { data, ext } = await encode(whole.png);
+    const file = `${slug}/${width}-page.${ext}`;
+    await writeFile(join(shotsDir, file), data);
+    shotsFor[width] = [{ key: 'page#1', label: 'The whole page', status: 'alone', build: { file, w: width, h: Math.round(whole.height) } }];
+    return `${width}px: photographed whole`;
+  }
+  const concept = await photographAt(pages.concept, width);
   const built = await photographAt(pages.built, width);
   meta = { title: built.title, siteName: built.siteName };
-  const pairs = concept ? alignBands(concept.bands, built.bands) : built.bands.map((build) => ({ build }));
+  const pairs = alignBands(concept.bands, built.bands);
   const seen = {};
   const out = [];
   for (const [i, pair] of pairs.entries()) {
@@ -163,7 +193,7 @@ async function pictures(width) {
         band.diff = await save('diff', result.diff, Math.max(pair.concept.height, pair.build.height));
       }
     } else if (pair.build) {
-      band.status = concept ? 'new' : 'alone';
+      band.status = 'new';
       band.build = await save('build', pair.build.png, pair.build.height);
     } else {
       band.status = 'gone';
@@ -172,7 +202,6 @@ async function pictures(width) {
     out.push(band);
   }
   shotsFor[width] = out;
-  if (!concept) return `${width}px: ${out.length} bands photographed`;
   const differ = out.filter((band) => band.status !== 'match');
   return differ.length
     ? `  Pictures: ${differ.length} of ${out.length} bands differ: ${differ.map((band) => `${band.label} (${band.status === 'differs' ? `${((band.different / band.compared) * 100).toFixed(2)}%` : band.status})`).join(', ')}`
@@ -192,7 +221,7 @@ if (shotsDir) {
 }
 
 const round = (n) => Math.round(n);
-const lines = [`## Port against concept\n\nConcept: ${conceptFile ?? 'none, so the build is photographed alone'}\nBuild: ${dir} ${path}\n`];
+const lines = [`## Port against concept\n\nConcept: ${conceptFile ?? 'none, so the build is photographed whole'}\nBuild: ${dir} ${path}\n`];
 const boxesFor = {};
 let listedOnlyOnce = false;
 let differences = 0;
@@ -261,6 +290,7 @@ if (conceptFile) lines.push('', differences ? `${differences} difference(s) to c
 if (shotsDir) {
   const data = { slug, path, concept: conceptFile, ...meta, ran: firstRan, widths, shots: shotsFor, boxes: boxesFor };
   await writeFile(join(shotsDir, slug, 'data.json'), `${JSON.stringify(data, null, 2)}\n`);
-  lines.push(`Pictures and the report: ${await writeReport(shotsDir)}`);
+  const report = await writeReport(shotsDir);
+  lines.push(`Pictures and the report: ${report.index}. To send: ${report.review}, ${report.pictures} picture(s) of what differs and of the pages no concept drew`);
 }
 console.log(lines.join('\n'));
