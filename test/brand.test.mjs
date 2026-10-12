@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
-import { drawLetter, icoFromSvg, parseAxes, renderCard } from '../src/brand.mjs';
+import { drawLetter, icoFromSvg, outlineText, parseAxes, renderCard } from '../src/brand.mjs';
 
 // Big Shoulders Display, a variable font (weight 100 to 900), as the WOFF2 a site self-hosts:
 // the case fontkit cannot read without unpacking it first. SIL Open Font License, fixtures/OFL.txt.
@@ -85,4 +85,32 @@ test('a missing letter and a malformed axis are refused', async () => {
   assert.deepEqual(parseAxes('wght=600, opsz=24'), { wght: 600, opsz: 24 });
   assert.deepEqual(parseAxes(''), {});
   assert.throws(() => parseAxes('wght'), /tag=number/);
+});
+
+test('lettering becomes one path per run, in its fill, cropped to the ink', async () => {
+  const font = await readFile(FONT);
+  const { svg, label } = await outlineText(font, [{ text: 'BIG', fill: '#08223D' }, { text: 'SHOULDERS', fill: '#FF5A1F' }], { axes: { wght: 900 } });
+  assert.equal(label, 'BIG SHOULDERS');
+  assert.match(svg, /role="img" aria-label="BIG SHOULDERS"/);
+  assert.match(svg, /<path class="run-1" fill="#08223D" d="M/);
+  assert.match(svg, /<path class="run-2" fill="#FF5A1F" d="M/);
+  // Rendered, the ink reaches every edge of the picture: the viewBox is cropped to it.
+  const { data, info } = await sharp(Buffer.from(svg), { density: 300 }).resize({ width: 800 }).flatten({ background: '#ffffff' })
+    .greyscale().raw().toBuffer({ resolveWithObject: true });
+  const ink = (x, y) => data[y * info.width + x] < 200;
+  // Within a pixel of each edge: the last column or row may be covered only in part.
+  const column = (x) => [...Array(info.height).keys()].some((y) => ink(x, y));
+  const row = (y) => [...Array(info.width).keys()].some((x) => ink(x, y));
+  const [w, h] = [info.width, info.height];
+  assert.ok((column(0) || column(1)) && (column(w - 1) || column(w - 2)), 'ink at the left and right');
+  assert.ok((row(0) || row(1)) && (row(h - 1) || row(h - 2)), 'ink at the top and bottom');
+});
+
+test('the gap between runs is the font space unless given in em', async () => {
+  const font = await readFile(FONT);
+  const runs = [{ text: 'A', fill: '#000' }, { text: 'B', fill: '#000' }];
+  const widthOf = async (gap) => (await outlineText(font, runs, { gap })).width;
+  const [one, two] = [await widthOf(1), await widthOf(2)];
+  assert.ok(Math.abs(two - one - 100) < 0.05, `an em more is 100 units wider: ${one} and ${two}`);
+  assert.ok((await widthOf(undefined)) < one, 'the font space is narrower than an em');
 });
