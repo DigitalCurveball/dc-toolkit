@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (2026-10-12)
+
+- **`dc-brand-assets`**, new: `public/favicon.ico` at 16, 32 and 48px from `public/favicon.svg`, and `src/assets/social-card.jpg` from the site's `scripts/social-card.html`, a page opened from disk so it uses the site's fonts and photos. Until now each site carried its own copy of a script for this, and the copies had begun to drift.
+- **`dc-favicon`**, new: `public/favicon.svg` as one letter of the site's font, as paths, on a tile, for a brand with no mark; a variable font's axes, the tile's corner and the letter's height are options. It unpacks a WOFF2 to TTF first, since fontkit cannot make a variable instance from one.
+- New dependencies `fontkit` and `wawoff2`. Tests in `test/brand.test.mjs`, with an open-licensed variable font as their fixture.
+
 ## 0.4.0 (2026-10-11)
 
 - `dc-compare --shots` without `--concept` photographs a page no concept drew, such as one of several detail pages made from a designed pattern, into the same report, which says so. The pages a set never drew are the ones most in need of a look.

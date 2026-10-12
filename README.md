@@ -1,6 +1,6 @@
 # dc-toolkit
 
-The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the comparison of a port with its concept, the contact form's server side, `robots.txt`, a few small helpers and the QA workflow. Each site is an Astro project (static output, Keystatic for content, Cloudflare Workers for hosting) made from a private template; this package holds the parts that must be the same everywhere, so a fix reaches every site through one update instead of a copy in each.
+The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the comparison of a port with its concept, the brand files, the contact form's server side, `robots.txt`, a few small helpers and the QA workflow. Each site is an Astro project (static output, Keystatic for content, Cloudflare Workers for hosting) made from a private template; this package holds the parts that must be the same everywhere, so a fix reaches every site through one update instead of a copy in each.
 
 It ships source (`.mjs`, `.ts`, `.astro`) with no build step, and is installed from a version tag:
 
@@ -224,6 +224,15 @@ A route, prerendered like a page, rather than a file in `public/`, so its Sitema
 - `dc-toolkit/email-links`: that script on its own, for pages whose Markdown renders addresses the same way.
 - `dc-toolkit/paths`: `isCurrentPage(href, pathname)`, for `aria-current` on the current menu link.
 - `dc-toolkit/text`: `parseBold(text)`, which splits `**bold**` in content into parts a component renders as `<b>`, instead of storing HTML.
+
+## The brand files
+
+Two commands, run from the site's root once per brand and again after a change; what they make is committed with the site. What the files look like stays the site's: its `public/favicon.svg` and its card's page, `scripts/social-card.html`.
+
+- **`pnpm exec dc-brand-assets`** writes `public/favicon.ico`, transparent PNGs of `public/favicon.svg` at 16, 32 and 48px, and `src/assets/social-card.jpg`, the 1200 × 630 link-preview card, by photographing `scripts/social-card.html` in Playwright's Chromium. The card's page is opened from disk, so it uses the site's own font files and photos by relative path (`url(../src/assets/fonts/<file>.woff2)`). A site with no card page keeps the card it has.
+- **`pnpm exec dc-favicon --font <file> --char <letter> --fg <#hex> --bg <#hex>`** draws `public/favicon.svg` for a brand with no mark: one letter of the site's font, as paths, since a favicon cannot load a font, in the middle of a 128-unit tile. `--axes wght=600,opsz=24` sets a variable font's instance, `--radius` the tile's corner as a share of its side (0 is square, 0.2 the default), `--ink` the letter's height as a share of the tile (0.57), and `--note` the SVG's comment. It reads TTF, OTF or WOFF2: fontkit cannot make an instance of a variable font from its WOFF2 (the instance has no character map, and its glyphs no path), so a WOFF2 is unpacked to TTF with wawoff2 first. Then run `dc-brand-assets` for the ICO, and keep the command with the site's brand notes, so the favicon can be drawn again.
+
+Tests in `test/brand.test.mjs`, the letter's on a variable WOFF2 (Big Shoulders Display, SIL Open Font License, `test/fixtures/OFL.txt`).
 
 ## Releasing
 
