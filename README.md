@@ -1,6 +1,6 @@
 # dc-toolkit
 
-The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the comparison of a port with its concept, the brand files, the contact form's server side, `robots.txt`, a few small helpers and the QA workflow. Each site is an Astro project (static output, Keystatic for content, Cloudflare Workers for hosting) made from a private template; this package holds the parts that must be the same everywhere, so a fix reaches every site through one update instead of a copy in each.
+The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the comparison of a port with its concept and the copy check, the brand files, the contact form's server side, `robots.txt`, a few small helpers and the QA workflow. Each site is an Astro project (static output, Keystatic for content, Cloudflare Workers for hosting) made from a private template; this package holds the parts that must be the same everywhere, so a fix reaches every site through one update instead of a copy in each.
 
 It ships source (`.mjs`, `.ts`, `.astro`) with no build step, and is installed from a version tag:
 
@@ -120,11 +120,23 @@ pnpm exec dc-compare --path /services/second-service/ --widths 320,400,768,1024,
 The folder goes outside the repo: the pictures are for looking at, not for committing.
 
 - **The report** is `<dir>/index.html`, and covers every page compared into that folder, in the order first run, so a checkpoint's pages run one after another make one report. A table of bands against widths comes first; then each width's bands stacked in page order, so they read as the whole page, with the concept and a difference picture under any band that differs. It is written to be read on a phone, and to the rules of a page published as an artifact on claude.ai (strip the outer `<html>`, `<head>` and `<body>` tags to publish it), so a checkpoint can be looked at away from the desk.
+- **The review**, `<dir>/review.html` beside it, is the one to send. It pictures only what needs a look: each band that differs, with the concept, the build and the difference, and each page no concept drew. A band that matches is a tick in its page's table, with no picture, so a checkpoint where everything matches is a few tables. On one Growth port, about 330 of its 2,198 pictures needed a look; the rest were matching bands. The run's last line says how many pictures it holds.
 - **Photos are left out of the count**, and shown pale blue in the difference. The concept loads a photo library's JPEGs and the build serves its own resized copies, so every photo would differ a little everywhere. They stay in the pictures, for their crops to be looked at.
 - **Each band is put on a whole pixel first.** Chrome puts each line of text on a whole pixel counted from where it falls, so a band starting a fraction of a pixel lower in one page painted identical lines a pixel apart, one line in two. Before each band is photographed, the page is moved down by less than a pixel, until the band's top is on a whole CSS pixel (a whole device pixel was not enough at 2x).
 - Below 1024px the pictures are taken at twice the pixels, so they are sharp on a phone's screen. Lazy photos are loaded first, so none is blank.
-- **A page no concept drew**, such as one of several detail pages made from a designed pattern, is photographed alone: `--shots` without `--concept`. It goes into the same report, which says so, with its bands at each width and nothing to compare.
+- **A page no concept drew**, such as one of several detail pages made from a designed pattern, is photographed whole, one picture per width: `--shots` without `--concept`. It goes into the same report and the review, which say so, with nothing to compare.
 - Band pairs are found in page order by tag, classes and label, then by tag and classes, then by tag alone, so a section whose classes changed is still compared with its counterpart; one in only one page is listed as New or Gone.
+
+### The copy check
+
+On Presence and Practice the client supplies the words, so a dropped word or a lost comma is a defect, and on a long page the eye misses it. `dc-check-copy` checks that every fragment of the approved copy appears in a page, word for word: run it on the concept before the port and on the build after it.
+
+```sh
+pnpm exec dc-check-copy --copy brief/design-brief.md --from "### Approved copy" --to "### The facts" dist/client/index.html
+pnpm exec dc-check-copy --copy intake/responses.md --from "**The top**" --to "20. Do you have" --ignore '^(Button|Under it): ' public/concepts/concept-a.html
+```
+
+`--from` and `--to` are the lines that start and end the copy in the file. Headings, blank lines and lines that are only a bold label are not copy; `--ignore` removes a pattern from each line first, such as the label a line of copy is written under, and a line it empties is skipped. Each line is split at the end of each sentence and at each colon, since layout may set the pieces apart, and each piece must appear in the page's text, ignoring case, curly quotes and spacing. A missing piece is listed, and the exit code is 1. It is for the port, never CI: once the site is live, the copy is the client's to change. On the first port it was run on, it found all 88 fragments of the owner's copy, in the concept and in the build. Tests in `test/copy.test.mjs`.
 
 ## The QA workflow
 
@@ -227,12 +239,13 @@ A route, prerendered like a page, rather than a file in `public/`, so its Sitema
 
 ## The brand files
 
-Two commands, run from the site's root once per brand and again after a change; what they make is committed with the site. What the files look like stays the site's: its `public/favicon.svg` and its card's page, `scripts/social-card.html`.
+Three commands, run from the site's root once per brand and again after a change; what they make is committed with the site. What the files look like stays the site's: its `public/favicon.svg`, its card's page, `scripts/social-card.html`, and its wordmark.
 
 - **`pnpm exec dc-brand-assets`** writes `public/favicon.ico`, transparent PNGs of `public/favicon.svg` at 16, 32 and 48px, and `src/assets/social-card.jpg`, the 1200 × 630 link-preview card, by photographing `scripts/social-card.html` in Playwright's Chromium. The card's page is opened from disk, so it uses the site's own font files and photos by relative path (`url(../src/assets/fonts/<file>.woff2)`). A site with no card page keeps the card it has.
 - **`pnpm exec dc-favicon --font <file> --char <letter> --fg <#hex> --bg <#hex>`** draws `public/favicon.svg` for a brand with no mark: one letter of the site's font, as paths, since a favicon cannot load a font, in the middle of a 128-unit tile. `--axes wght=600,opsz=24` sets a variable font's instance, `--radius` the tile's corner as a share of its side (0 is square, 0.2 the default), `--ink` the letter's height as a share of the tile (0.57), and `--note` the SVG's comment. It reads TTF, OTF or WOFF2: fontkit cannot make an instance of a variable font from its WOFF2 (the instance has no character map, and its glyphs no path), so a WOFF2 is unpacked to TTF with wawoff2 first. Then run `dc-brand-assets` for the ICO, and keep the command with the site's brand notes, so the favicon can be drawn again.
+- **`pnpm exec dc-outline-text --font <file> --out wordmark.svg "Digital=#666666" "Curveball=#ff3333"`** sets lettering in a font and writes it as SVG paths, so a wordmark can appear without its font being served. Desktop font licences usually forbid web embedding but allow artwork made from typesetting: read the licence first, and never put the font file in `public/`. Each argument is one run of text with its fill; the runs sit on one baseline, kerned, separated by the font's space or by `--gap` in em. The viewBox is cropped to the ink, and each run is a path with the class `run-1`, `run-2` and so on, so a page can recolour it. `--size` is the font size in SVG units (100), and `--axes` a variable font's instance. It reproduces, pixel for pixel, the wordmark its earlier opentype.js version made.
 
-Tests in `test/brand.test.mjs`, the letter's on a variable WOFF2 (Big Shoulders Display, SIL Open Font License, `test/fixtures/OFL.txt`).
+Tests in `test/brand.test.mjs`, the letter's and the lettering's on a variable WOFF2 (Big Shoulders Display, SIL Open Font License, `test/fixtures/OFL.txt`).
 
 ## Releasing
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 (2026-10-13)
+
+- **`dc-compare --shots` writes `review.html`** beside `index.html`: the report picturing only what needs a look, each band that differs and each page no concept drew, with a matching band a tick in its page's table. It is the one to send from a checkpoint; on one Growth port about 330 of its 2,198 pictures needed a look, and its largest checkpoint, 1,142 pictures, was refused whole as an artifact. The run's last line says how many pictures the review holds.
+- **A page no concept drew is photographed whole**, one picture per width, rather than band by band: nothing needs lining up, and its pictures were most of a checkpoint's. Its band in `data.json` is "The whole page".
+- **`dc-check-copy`**, new: every fragment of a client's approved copy must appear in a page, word for word, ignoring case, curly quotes and spacing; `--from`, `--to` and `--ignore` pick the copy out of the brief or the intake. Until now one site carried its own copy check. Tests in `test/copy.test.mjs`.
+- **`dc-outline-text`**, new: lettering in a font as SVG paths, for a wordmark whose font may not be served, on fontkit like `dc-favicon`. Until now each site carried a copy of an opentype.js script for it, which this reproduces pixel for pixel.
+
 ## 0.5.0 (2026-10-12)
 
 - **`dc-brand-assets`**, new: `public/favicon.ico` at 16, 32 and 48px from `public/favicon.svg`, and `src/assets/social-card.jpg` from the site's `scripts/social-card.html`, a page opened from disk so it uses the site's fonts and photos. Until now each site carried its own copy of a script for this, and the copies had begun to drift.
