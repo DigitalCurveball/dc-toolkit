@@ -89,6 +89,17 @@ const pages = {
   concept: conceptServer && `${conceptServer.origin}/${basename(conceptFile)}`,
   built: new URL(path, builtServer.origin).href,
 };
+// A mistyped --path or concept would otherwise be photographed as the server's "not found".
+for (const [which, url] of Object.entries(pages)) {
+  if (!url) continue;
+  const { status } = await fetch(url);
+  if (status !== 200) {
+    console.error(`The ${which} page, ${which === 'built' ? `${path} in ${dir}` : conceptFile}, answers ${status}: check the path`);
+    conceptServer?.close();
+    builtServer.close();
+    process.exit(2);
+  }
+}
 const browser = await chromium.launch();
 
 async function measureAt(url, width) {

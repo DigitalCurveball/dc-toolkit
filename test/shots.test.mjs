@@ -126,6 +126,11 @@ test('dc-compare --shots: a band below a taller one still matches, a recoloured 
   assert.deepEqual(other.shots[400].map((b) => `${b.label} ${b.status}`), ['The whole page alone']);
   assert.equal(other.shots[400][0].build.file, 'other/400-page.webp');
 
+  // A page that does not exist is refused, not photographed as "not found".
+  await assert.rejects(promisify(execFile)(process.execPath, [
+    'bin/dc-compare.mjs', '--dir', join(dir, 'build'), '--path', '/missing/', '--widths', '400', '--shots', join(dir, 'shots'),
+  ]), /answers 404: check the path/);
+
   const report = await readFile(join(dir, 'shots', 'index.html'), 'utf8');
   assert.match(report, /<title>Test site port check<\/title>/);
   assert.match(report, /id="home-400-1"/);

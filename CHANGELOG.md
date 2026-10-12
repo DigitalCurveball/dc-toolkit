@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 (2026-10-13)
+
+- `dc-compare` refuses a page that does not answer 200, the built page or the concept, rather than photographing the server's "not found" as if it were the page: a mistyped `--path` did exactly that.
+
 ## 0.6.0 (2026-10-13)
 
 - **`dc-compare --shots` writes `review.html`** beside `index.html`: the report picturing only what needs a look, each band that differs and each page no concept drew, with a matching band a tick in its page's table. It is the one to send from a checkpoint; on one Growth port about 330 of its 2,198 pictures needed a look, and its largest checkpoint, 1,142 pictures, was refused whole as an artifact. The run's last line says how many pictures the review holds.
