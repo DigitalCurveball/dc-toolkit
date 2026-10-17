@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 (2026-10-17)
+
+- **`parseCopy`, `plainCopy` and `telHref`** in `dc-toolkit/text`, and **`Copy.astro`**, new: a line of copy with `**bold**`, `[a label](/a/page/)` links, and the site's phone number and email address linked wherever they appear, the address through `EmailLink`. One demo site carried this as its own `src/lib/copy.ts` and `CopyLine.astro`, and a second needed it. The same parts as that copy's, with the email address added; the phone and the address are named in an options object, `parseCopy(text, { phone, email })`, where that copy took the phone alone. A site's own copy keeps working beside it, so nothing changes for a site until it switches.
+- **`dc-toolkit/demo-form`**, new: a demo's form never sends; a submit shows the notice the form keeps in a `<template>`, in its live region. Two demo sites each carried the same lines in their forms' scripts, and their markup already works with this one.
+- **`EmailLink`'s address may break after its @.** An address such as "hello@a-longer-business-name.example.com.au" is wider than a 320px column, and the script wrote the address as one unbreakable word. Nothing changes where an address fits.
+
 ## 0.6.1 (2026-10-13)
 
 - `dc-compare` refuses a page that does not answer 200, the built page or the concept, rather than photographing the server's "not found" as if it were the page: a mistyped `--path` did exactly that.

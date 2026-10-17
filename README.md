@@ -232,10 +232,13 @@ A route, prerendered like a page, rather than a file in `public/`, so its Sitema
 
 ## The helpers
 
-- `dc-toolkit/EmailLink.astro`: an email link harvesters can't lift from the HTML. Neither `name@domain` nor `mailto:` is written into the page; the two halves sit in separate attributes and a script joins them in the browser. Without JavaScript it reads "info [at] example.com". Unstyled: a parent styles it with `:global(a)`.
+- `dc-toolkit/EmailLink.astro`: an email link harvesters can't lift from the HTML. Neither `name@domain` nor `mailto:` is written into the page; the two halves sit in separate attributes and a script joins them in the browser. Without JavaScript it reads "info [at] example.com". Unstyled: a parent styles it with `:global(a)`. The address may break after its @, so a long one fits a phone's column (from 0.7.0).
 - `dc-toolkit/email-links`: that script on its own, for pages whose Markdown renders addresses the same way.
 - `dc-toolkit/paths`: `isCurrentPage(href, pathname)`, for `aria-current` on the current menu link.
 - `dc-toolkit/text`: `parseBold(text)`, which splits `**bold**` in content into parts a component renders as `<b>`, instead of storing HTML.
+- `dc-toolkit/text`: `parseCopy(text, { phone, email })`, a line of copy as an owner writes it in the CMS, split into parts: `**bold**`, `[a label](/a/page/)` for a link, and the site's phone number and email address, each a link wherever the text has it. `plainCopy(text)` is the same line without its marks, and `telHref(phone)` the `tel:` link for a number as an Australian owner writes it. From 0.7.0; a demo site carried it first.
+- `dc-toolkit/Copy.astro`: `<Copy text={line} phone={site.phone} email={site.email} />` renders `parseCopy`'s parts inline, the address through `EmailLink`, inside the page's own `<p>` or `<li>`. A parent styles its links with `:global(a)`.
+- `dc-toolkit/demo-form`: for a demo site's form, which never sends. Imported from the form's `<script>`, it stops every `form[data-demo]` from submitting and copies the notice in the form's `<template>` into its live region, `role="status"`; the file's comment has the markup. From 0.7.0; two demos carried it first.
 
 ## The brand files
 

@@ -1,0 +1,26 @@
+---
+// A line of copy as the owner wrote it, with its marks made into elements (parseCopy in
+// ./text.ts): **bold**, [a label](/a/page/), and the phone number and email address, linked
+// wherever they appear, the address through EmailLink. Rendered inline, so the page puts it
+// inside its own <p> or <li>. Its elements carry no scope of the page's, so a parent styles
+// them with :global(a) and :global(strong).
+import EmailLink from './EmailLink.astro';
+import { parseCopy } from './text';
+
+interface Props {
+  text: string;
+  /** The site's phone number, linked wherever the text has it. */
+  phone?: string;
+  /** The site's email address, shown through EmailLink wherever the text has it. */
+  email?: string;
+}
+
+const { text, phone, email } = Astro.props;
+---
+
+{
+  parseCopy(text, { phone, email }).map((part) => {
+    const words = part.email ? <EmailLink address={part.text} /> : part.href ? <a href={part.href}>{part.text}</a> : part.text;
+    return part.bold ? <strong>{words}</strong> : words;
+  })
+}
