@@ -21,6 +21,7 @@
     "./email-links": "./src/email-links.ts",
     "./EmailLink.astro": "./src/EmailLink.astro",
     "./Copy.astro": "./src/Copy.astro",
+    "./Banner.astro": "./src/Banner.astro",
     "./demo-form": "./src/demo-form.ts",
     "./paths": "./src/paths.ts",
     "./text": "./src/text.ts",

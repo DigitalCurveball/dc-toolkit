@@ -1,0 +1,52 @@
+---
+// A banner across the top of the page whose short line stays at the top of the screen once the
+// banner has scrolled away: a demo site's "this business is made up", which a screenshot from
+// anywhere on the page has to show too. The banner itself is unchanged and scrolls with the page.
+// As its last line leaves the screen, the short line slides down in its place, so it reads as the
+// banner shrinking while nothing beneath it moves: a transform, so no layout shift.
+//
+// The banner says it first, to screen readers and the keyboard, so the short line is hidden from
+// both. A link tabbed to, or a section jumped to, stops below the short line (scroll-padding-top,
+// measured from it), never under it. Without scripts there is no short line, and the banner is
+// as it always was.
+//
+// Its look is the site's: this sets only how the short line stays and moves. A parent styles
+// both with :global(.dc-banner) and :global(.dc-banner-bar), their colours, type, padding and
+// the short line's lower edge, which needs one where it passes over a ground of its own colour.
+// The short line is a few words, kept on one line: check it fits at 320px.
+
+interface Props {
+  /** The banner's name as a landmark, for screen readers, such as "About this demo". */
+  label: string;
+  /** The banner's sentence, before its link. */
+  text: string;
+  /** The short line, before the same link. */
+  short: string;
+  link: { href: string; label: string };
+}
+
+const { label, text, short, link } = Astro.props;
+---
+
+<aside class="dc-banner" aria-label={label}><p>{text} <a href={link.href}>{link.label}</a></p></aside>
+<div class="dc-banner-bar" aria-hidden="true"><p>{short} <a href={link.href} tabindex="-1">{link.label}</a></p></div>
+
+<script>
+  const banner = document.querySelector<HTMLElement>('.dc-banner');
+  const bar = document.querySelector<HTMLElement>('.dc-banner-bar');
+  if (banner && bar) {
+    const height = bar.offsetHeight;
+    document.documentElement.style.scrollPaddingTop = `${height + 8}px`;
+    new IntersectionObserver(([entry]) => bar.classList.toggle('shown', !entry.isIntersecting), {
+      rootMargin: `-${height}px 0px 0px 0px`,
+    }).observe(banner);
+  }
+</script>
+
+<style>
+  .dc-banner-bar { position: fixed; inset: 0 0 auto; z-index: 100; transform: translateY(-100%); visibility: hidden; transition: transform .2s ease-out, visibility 0s linear .2s; }
+  .dc-banner-bar.shown { transform: none; visibility: visible; transition: transform .2s ease-out; }
+  .dc-banner-bar p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (prefers-reduced-motion: reduce) { .dc-banner-bar, .dc-banner-bar.shown { transition: none; } }
+  @media print { .dc-banner-bar { display: none; } }
+</style>
