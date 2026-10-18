@@ -64,7 +64,7 @@ Local runs need browser system libraries once, which a WSL machine lacks: `sudo 
 
 **Path filters matter.** Keystatic commits on every save, and content cannot change contrast or layout. Running a browser on each save would spend both GitHub's Actions minutes and Cloudflare's build minutes for nothing.
 
-Bare `href="#"` links are counted, not failed: they are expected until launch. External links are only checked with `--external`, so a flaky third party cannot turn a design check red.
+Bare `href="#"` links are counted, not failed: they are expected until launch. External links are only checked with `--external`, so a flaky third party cannot turn a design check red. Each link is fetched once a run, however many pages carry it, and a failure that may be the network's, a dropped connection, a 429 or a 5xx, is tried twice more, a second and then two apart, before it counts; a 404 counts at once (from 0.7.1).
 
 **Every page must be listed.** The gate checks the paths in the site's `package.json` `qa` script (`"qa": "dc-qa --dir dist/client --path /,/about/,/contact/"`), the QA workflow hands the same paths to Lighthouse, and `dc-check-routing` reads them too, so a new page means one edit there. Unlisted pages are never checked, and nothing warns you.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 (2026-10-18)
+
+- **`dc-qa`'s link check tries a link again when the failure may be the network's**: a dropped connection ("fetch failed"), a 429 or a 5xx, up to three tries a second and then two apart, and only that link, not the run. A 404 still counts at once. A live check failed a page twice with "fetch failed" while it answered 200, and the whole run had to go again.
+- **Each link is fetched once a run**, however many pages carry it: the header's and footer's links were fetched again on every page, about 28 of them on each of a ten-page site's.
+
 ## 0.7.0 (2026-10-17)
 
 - **`parseCopy`, `plainCopy` and `telHref`** in `dc-toolkit/text`, and **`Copy.astro`**, new: a line of copy with `**bold**`, `[a label](/a/page/)` links, and the site's phone number and email address linked wherever they appear, the address through `EmailLink`. One demo site carried this as its own `src/lib/copy.ts` and `CopyLine.astro`, and a second needed it. The same parts as that copy's, with the email address added; the phone and the address are named in an options object, `parseCopy(text, { phone, email })`, where that copy took the phone alone. A site's own copy keeps working beside it, so nothing changes for a site until it switches.

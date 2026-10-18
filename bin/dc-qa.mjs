@@ -26,9 +26,10 @@
 //              Escape closes it and puts focus back, at each width the button
 //              shows (src/menu-buttons.mjs). axe sees none of that.
 //   links      in-page anchors point at something that exists, internal links
-//              resolve. Bare "#" placeholders are counted, not failed: they are
-//              expected until launch, and the launch checklist is where they
-//              become a problem.
+//              resolve, each fetched once a run and tried up to three times when
+//              the failure may be the network's (src/link-status.mjs). Bare "#"
+//              placeholders are counted, not failed: they are expected until
+//              launch, and the launch checklist is where they become a problem.
 //   headings   exactly one h1, and no skipped levels.
 //   meta       title, description, canonical and Open Graph present.
 //
@@ -41,6 +42,7 @@ import { appendFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { findCoveredText } from '../src/covered-text.mjs';
+import { linkChecker } from '../src/link-status.mjs';
 import { checkMenuButtons } from '../src/menu-buttons.mjs';
 import { serve } from '../src/serve.mjs';
 
@@ -58,6 +60,8 @@ const paths = (arg('path', '/') ?? '/').split(',');
 // Off by default: a flaky third-party host should not turn a design check red.
 // Worth enabling for the scheduled runs against a live site.
 const checkExternal = args.includes('--external');
+// Each link fetched once per run, a dropped connection, 429 or 5xx tried again (src/link-status.mjs).
+const linkStatus = linkChecker();
 const jsonFile = arg('json');
 if (!dir && !url) {
   console.error('Need --dir <build output> or --url <live site>');
@@ -150,15 +154,8 @@ async function checkDocument(page, path, result) {
     const sameOrigin = link.resolved.startsWith(origin);
     if (!sameOrigin && !checkExternal) continue;
     checked.push(link.resolved);
-    try {
-      let res = await fetch(link.resolved, { method: 'HEAD', redirect: 'follow' });
-      if (res.status === 405 || res.status === 501) {
-        res = await fetch(link.resolved, { method: 'GET', redirect: 'follow' });
-      }
-      if (!res.ok) broken.push({ ...link, problem: String(res.status) });
-    } catch (error) {
-      broken.push({ ...link, problem: error.message });
-    }
+    const problem = await linkStatus(link.resolved);
+    if (problem) broken.push({ ...link, problem });
   }
   result.links = { checked, broken, placeholders: placeholders.length };
   if (broken.length) {
