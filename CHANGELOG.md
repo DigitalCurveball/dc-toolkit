@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1 (2026-10-19)
+
+- **`Banner.astro`'s own rules carry no specificity** (`:where`), so a site's rule for the same property wins. Scoped, they outranked a site's `:global(.dc-banner-bar)`, one class against a class and Astro's attribute, so a site could not move the short line: one with a column stuck down its left edge needs the short line to start beside it, not over its lettering.
+
 ## 0.8.0 (2026-10-19)
 
 - **`Banner.astro`**, new: a banner across the top of the page whose short line stays at the top of the screen once the banner has scrolled away, for a demo site's "this business is made up", which a screenshot from anywhere on the page should show too. The banner scrolls with the page as before; as its last line leaves, the short line slides down in its place, a transform, so nothing moves and there is no layout shift, with no slide for anyone who asks for reduced motion. The short line is hidden from screen readers and the keyboard, since the banner says it first, and `scroll-padding-top`, measured from it, keeps a tabbed-to link below it. Its look is the site's, through `:global(.dc-banner)` and `:global(.dc-banner-bar)`. Three demo sites each carried a banner of their own, written three ways, and all three want this.
