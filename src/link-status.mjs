@@ -1,7 +1,7 @@
 // A link's status for dc-qa: null when it resolves, otherwise what went wrong ("404", or the
 // error's message). Each URL is fetched once per run, however many pages carry it, and only a
 // failure that may be the moment rather than the link is tried again: a dropped connection
-// ("fetch failed"), a 429 or a 5xx. A 404 is final. demo-fanlight's first live check, on
+// ("fetch failed"), a 429 or a 5xx. A 404 is final. A demo site's first live check, on
 // 2026-10-18, failed /projects/ twice with "fetch failed" while it answered 200, and the whole
 // run had to go again.
 
