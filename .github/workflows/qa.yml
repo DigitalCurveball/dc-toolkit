@@ -30,7 +30,7 @@ jobs:
     # A pull request's merge is not checked again on main: its pull request was, on the same
     # content, and checking it twice was half of what a toolkit release cost. A push straight to
     # main, as before a launch, is checked as ever.
-    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request #')
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request ')
     # A newer run on the same branch, with the same inputs, stops this one: a run on a commit
     # already superseded tells nobody anything. The inputs are in the group so that a port's
     # concept baselines, dispatched together on main, do not stop each other.
