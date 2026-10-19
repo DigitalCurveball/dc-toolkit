@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1 (2026-10-19)
+
+- **`heic.yml` survives a client saving again while it converts.** It works from the branch as it is when it runs, not the commit that started it, puts its commit on top of any save made meanwhile, and runs one at a time per repo. Before, a second save within the minute would have had its push refused, leaving the HEIC in place and every later build failing, since a later save adds no HEIC to start it again.
+
 ## 0.9.0 (2026-10-19)
 
 - **`dc-qa` fails another site's link only when its server says the page is not there**, a 404 or a 410. A 403, a 429 or LinkedIn's 999, or a connection still dropped after the retries, is a site turning checkers away or a bad moment: it is listed as "could not check", in `links.unchecked` and a ⚠️ line, and fails nothing, the care reports' rule. The site's own links must all resolve, as before.
