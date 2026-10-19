@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 (2026-10-19)
+
+- **`dc-qa` fails another site's link only when its server says the page is not there**, a 404 or a 410. A 403, a 429 or LinkedIn's 999, or a connection still dropped after the retries, is a site turning checkers away or a bad moment: it is listed as "could not check", in `links.unchecked` and a ⚠️ line, and fails nothing, the care reports' rule. The site's own links must all resolve, as before.
+- **`.github/workflows/heic.yml`**, new: a reusable workflow that converts a HEIC or HEIF photo under `src/` to a JPEG, points the content at it and commits it. An iPhone or a Mac saves HEIC, which a site cannot build (sharp reads HEIF's AVIF only), and Keystatic's image field takes any image, so a client's upload of one failed the build and their save never appeared. A site calls it from its own workflow (the README, "Photos from an iPhone").
+- **The workflows on current actions**: `actions/checkout` 7, `pnpm/action-setup` 6 and `actions/setup-node` 7, off the Node 20 runtime GitHub has deprecated.
+
 ## 0.8.1 (2026-10-19)
 
 - **`Banner.astro`'s own rules carry no specificity** (`:where`), so a site's rule for the same property wins. Scoped, they outranked a site's `:global(.dc-banner-bar)`, one class against a class and Astro's attribute, so a site could not move the short line: one with a column stuck down its left edge needs the short line to start beside it, not over its lettering.
