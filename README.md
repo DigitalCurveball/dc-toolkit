@@ -164,6 +164,8 @@ jobs:
 
 Its inputs: `target` (`build` or `concept`), `concept_dir` (default `public/concepts`) and `concept_file` (default `index.html`).
 
+One job, `checks`, installs and builds the site once, runs `pnpm qa`, then Lighthouse, which runs even when the checks failed, so a run shows both. It skips a push to `main` that merges a pull request, since the pull request was checked on the same content, and a newer run on the same branch with the same inputs cancels an older one. Actions minutes ran out on 2026-10-19 with two jobs each building the site and every merge checked twice (from 0.10.0).
+
 ## Photos from an iPhone
 
 An iPhone or a Mac saves photos as HEIC, which a site cannot build (sharp reads HEIF's AVIF only), and Keystatic's image field takes any image, with no setting to refuse one. So a client's HEIC upload would fail the build, and their save would never appear. `.github/workflows/heic.yml` converts it on the way in: each HEIC or HEIF file under `src/` becomes a JPEG beside it, the content that names it is pointed at the JPEG, and the change is committed, which deploys a minute after the failed build it replaces. A site calls it from its own `.github/workflows/heic.yml`, which Renovate moves with the package (from 0.9.0):

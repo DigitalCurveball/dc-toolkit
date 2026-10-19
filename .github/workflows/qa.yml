@@ -23,8 +23,20 @@ on:
         default: index.html
 
 jobs:
-  accessibility-and-layout:
+  # One job: the site is installed and built once for both the checks and Lighthouse, where two
+  # jobs each did it, a quarter of a run's minutes (Actions minutes ran out, 2026-10-19).
+  checks:
     runs-on: ubuntu-latest
+    # A pull request's merge is not checked again on main: its pull request was, on the same
+    # content, and checking it twice was half of what a toolkit release cost. A push straight to
+    # main, as before a launch, is checked as ever.
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request #')
+    # A newer run on the same branch, with the same inputs, stops this one: a run on a commit
+    # already superseded tells nobody anything. The inputs are in the group so that a port's
+    # concept baselines, dispatched together on main, do not stop each other.
+    concurrency:
+      group: qa-${{ github.ref }}-${{ inputs.target }}-${{ inputs.concept_file }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
 
@@ -41,7 +53,8 @@ jobs:
       # usually does not, which is why local runs need `playwright install-deps`.
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm build
+      - id: build
+        run: pnpm build
         if: inputs.target != 'concept'
 
       # Writes its report to the job summary, and exits non-zero on any failure so
@@ -53,7 +66,7 @@ jobs:
       #
       # The build is checked through `pnpm qa`, so the list of pages lives in one
       # place: package.json. Add every new page there.
-      - name: Check
+      - name: Accessibility and layout
         env:
           TARGET: ${{ inputs.target }}
           CONCEPT_DIR: ${{ inputs.concept_dir }}
@@ -65,30 +78,20 @@ jobs:
             pnpm qa
           fi
 
-  # Separate job so it runs alongside the checks above rather than after them,
-  # and so a Lighthouse flake is obviously distinct from an accessibility failure.
-  # Budgets come from the runbook's QA gate: performance 95, accessibility 100,
-  # SEO 95. Median of three runs, because a single run on a shared runner is noisy.
-  lighthouse:
-    runs-on: ubuntu-latest
-    if: inputs.target != 'concept'
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      # The same pages as the job above: the paths in package.json's qa script, so the
-      # list lives in one place. Left to find pages itself, Lighthouse takes the first
-      # five HTML files in the build, which include the noindexed concepts from
-      # public/concepts/ (failing SEO by design) and would skip real pages as the site
-      # grows. The action's own urls input doesn't stop that when the config sets
-      # staticDistDir (tried 2026-10-02), so this writes the list into a copy of the
-      # config as collect.url, which does; Lighthouse swaps in its server's port.
-      - name: Pages to check
+      # Lighthouse runs even when the checks above failed, so a run shows both, and the failed
+      # step's name says which: a Lighthouse flake is plainly not an accessibility failure.
+      # Budgets come from the runbook's QA gate: performance 95, accessibility 100, SEO 95.
+      # Median of three runs, because a single run on a shared runner is noisy.
+      #
+      # The same pages as the checks: the paths in package.json's qa script, so the list lives
+      # in one place. Left to find pages itself, Lighthouse takes the first five HTML files in
+      # the build, which include the noindexed concepts from public/concepts/ (failing SEO by
+      # design) and would skip real pages as the site grows. The action's own urls input
+      # doesn't stop that when the config sets staticDistDir (tried 2026-10-02), so this writes
+      # the list into a copy of the config as collect.url, which does; Lighthouse swaps in its
+      # server's port.
+      - name: Pages for Lighthouse
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           node -e "
             const config = require('./lighthouserc.json');
@@ -97,7 +100,9 @@ jobs:
             require('fs').writeFileSync('lighthouserc.ci.json', JSON.stringify(config, null, 2));
             console.log(config.ci.collect.url.join('\n'));
           "
-      - uses: treosh/lighthouse-ci-action@v12
+      - name: Lighthouse
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: treosh/lighthouse-ci-action@v12
         with:
           configPath: ./lighthouserc.ci.json
           uploadArtifacts: true

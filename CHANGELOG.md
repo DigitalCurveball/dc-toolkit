@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0 (2026-10-19)
+
+- **The QA workflow spends about half the Actions minutes.** One job, `checks`, in place of `accessibility-and-layout` and `lighthouse`, which each installed and built the site; Lighthouse still runs when the checks fail, so a run shows both. A push to `main` that merges a pull request is skipped, since its pull request was checked on the same content, and that second run was half of what a release cost across the sites. A newer run on the same branch, with the same inputs, cancels an older one. The account's 2,000 monthly minutes ran out on 2026-10-19. The check's name changes, so anything that waits for a check by name needs the new one.
+
 ## 0.9.2 (2026-10-19)
 
 - **`dc-compare --shots` photographs each band to the whole device pixel below its bottom edge**, no longer rounding to the nearest. A last row the band only partly covers belongs to the next band too, and Chromium 156, which Playwright 1.64 brings, paints it in the next band's colour where Chromium 155 painted it in this one's, so an identical band was reported as different whenever the band below differed: the test of exactly that failed on the new browser.
