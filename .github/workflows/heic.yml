@@ -1,0 +1,57 @@
+name: HEIC to JPEG
+
+# A photo from an iPhone or a Mac is often HEIC, which a site cannot build: sharp, behind Astro's
+# images, reads HEIF's AVIF only. Keystatic's image field takes any image (it asks the browser for
+# image/*, with no setting to narrow it), so a client who uploads one would fail the build, and
+# the save would never appear. This converts it on the way in: each HEIC or HEIF file under src/
+# becomes a JPEG beside it, the content that names it names the JPEG instead, and the change is
+# committed, which deploys. The build of the commit that brought the HEIC fails; this commit's,
+# a minute later, replaces it. A site calls it from its own .github/workflows/heic.yml, on a
+# push to main that adds such a file (the README, "Photos from an iPhone").
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: find
+        run: |
+          git ls-files -- src | grep -iE '\.hei[cf]$' > "$RUNNER_TEMP/heic.txt" || true
+          echo "count=$(wc -l < "$RUNNER_TEMP/heic.txt")" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/heic.txt"
+
+      # libheif's own converter, from Ubuntu, which reads HEVC.
+      - if: steps.find.outputs.count != '0'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libheif-examples
+
+      - if: steps.find.outputs.count != '0'
+        run: |
+          while IFS= read -r f; do
+            jpg="${f%.*}.jpg"
+            heif-convert -q 90 "$f" "$jpg"
+            # A file holding more than one image comes out as name-1.jpg, name-2.jpg…: the first
+            # is the photo.
+            if [ ! -f "$jpg" ]; then
+              mv "${f%.*}-1.jpg" "$jpg"
+              rm -f "${f%.*}"-[0-9]*.jpg
+            fi
+            git rm -q -- "$f"
+            git add -- "$jpg"
+            echo "$f -> $jpg"
+          done < "$RUNNER_TEMP/heic.txt"
+          # Every HEIC under src/ is now a JPEG, so any path in the content that names one means it.
+          git ls-files -z -- src | grep -zE '\.(ya?ml|json|md|mdx|mdoc)$' |
+            xargs -0 -r sed -i -E 's/([A-Za-z0-9_./-]+)\.(heic|HEIC|heif|HEIF)\b/\1.jpg/g'
+          git add -u -- src
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m 'Photos: HEIC converted to JPEG, which the site can build' -m "$(cat "$RUNNER_TEMP/heic.txt")"
+          git push

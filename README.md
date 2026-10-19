@@ -64,7 +64,7 @@ Local runs need browser system libraries once, which a WSL machine lacks: `sudo 
 
 **Path filters matter.** Keystatic commits on every save, and content cannot change contrast or layout. Running a browser on each save would spend both GitHub's Actions minutes and Cloudflare's build minutes for nothing.
 
-Bare `href="#"` links are counted, not failed: they are expected until launch. External links are only checked with `--external`, so a flaky third party cannot turn a design check red. Each link is fetched once a run, however many pages carry it, and a failure that may be the network's, a dropped connection, a 429 or a 5xx, is tried twice more, a second and then two apart, before it counts; a 404 counts at once (from 0.7.1).
+Bare `href="#"` links are counted, not failed: they are expected until launch. External links are only checked with `--external`, so a flaky third party cannot turn a design check red. Each link is fetched once a run, however many pages carry it, and a failure that may be the network's, a dropped connection, a 429 or a 5xx, is tried twice more, a second and then two apart, before it counts; a 404 counts at once (from 0.7.1). Another site's link fails only when its server says the page is not there, a 404 or a 410; anything else that outlasts the retries, such as a 403, a 429 or LinkedIn's 999, is listed as "could not check", the care reports' rule, and fails nothing. The site's own links must all resolve (from 0.9.0).
 
 **Every page must be listed.** The gate checks the paths in the site's `package.json` `qa` script (`"qa": "dc-qa --dir dist/client --path /,/about/,/contact/"`), the QA workflow hands the same paths to Lighthouse, and `dc-check-routing` reads them too, so a new page means one edit there. Unlisted pages are never checked, and nothing warns you.
 
@@ -163,6 +163,23 @@ jobs:
 ```
 
 Its inputs: `target` (`build` or `concept`), `concept_dir` (default `public/concepts`) and `concept_file` (default `index.html`).
+
+## Photos from an iPhone
+
+An iPhone or a Mac saves photos as HEIC, which a site cannot build (sharp reads HEIF's AVIF only), and Keystatic's image field takes any image, with no setting to refuse one. So a client's HEIC upload would fail the build, and their save would never appear. `.github/workflows/heic.yml` converts it on the way in: each HEIC or HEIF file under `src/` becomes a JPEG beside it, the content that names it is pointed at the JPEG, and the change is committed, which deploys a minute after the failed build it replaces. A site calls it from its own `.github/workflows/heic.yml`, which Renovate moves with the package (from 0.9.0):
+
+```yaml
+name: HEIC to JPEG
+on:
+  push:
+    branches: [main]
+    paths: ['src/**/*.heic', 'src/**/*.HEIC', 'src/**/*.heif', 'src/**/*.HEIF']
+jobs:
+  convert:
+    permissions:
+      contents: write
+    uses: DigitalCurveball/dc-toolkit/.github/workflows/heic.yml@vX.Y.Z
+```
 
 ## The contact form
 

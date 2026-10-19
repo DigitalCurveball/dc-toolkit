@@ -62,6 +62,8 @@ const paths = (arg('path', '/') ?? '/').split(',');
 const checkExternal = args.includes('--external');
 // Each link fetched once per run, a dropped connection, 429 or 5xx tried again (src/link-status.mjs).
 const linkStatus = linkChecker();
+// What another site's server says when the page is not there: anything else is "could not check".
+const GONE = ['404', '410'];
 const jsonFile = arg('json');
 if (!dir && !url) {
   console.error('Need --dir <build output> or --url <live site>');
@@ -142,6 +144,7 @@ async function checkDocument(page, path, result) {
   // Links
   const placeholders = found.links.filter((l) => l.href === '#');
   const broken = [];
+  const unchecked = [];
   const checked = [];
   for (const link of found.links) {
     if (link.href === '#') continue;
@@ -155,16 +158,25 @@ async function checkDocument(page, path, result) {
     if (!sameOrigin && !checkExternal) continue;
     checked.push(link.resolved);
     const problem = await linkStatus(link.resolved);
-    if (problem) broken.push({ ...link, problem });
+    if (!problem) continue;
+    // Another site's link is broken only when its server says the page is not there. A 403, 429
+    // or 999 (LinkedIn), or a connection still dropped after the retries, is a site turning
+    // checkers away, or a bad moment: "could not check", as the care reports say, not a failure.
+    // The site's own links must all resolve.
+    if (sameOrigin || GONE.includes(problem)) broken.push({ ...link, problem });
+    else unchecked.push({ ...link, problem });
   }
-  result.links = { checked, broken, placeholders: placeholders.length };
+  result.links = { checked, broken, unchecked, placeholders: placeholders.length };
   if (broken.length) {
     for (const { href, problem } of broken) {
       failures.push(`${path}: broken link ${href} (${problem})`);
       lines.push(`- ❌ broken link: ${href} (${problem})`);
     }
   } else {
-    lines.push(`- ✅ links resolve (${checked.length} checked)`);
+    lines.push(`- ✅ links resolve (${checked.length - unchecked.length} of ${checked.length} checked)`);
+  }
+  for (const { href, problem } of unchecked) {
+    lines.push(`- ⚠️ could not check ${href} (${problem}): another site, turning checkers away or not answering`);
   }
   if (placeholders.length) {
     lines.push(`- ℹ️ ${placeholders.length} placeholder links (\`href="#"\`), expected until launch`);
