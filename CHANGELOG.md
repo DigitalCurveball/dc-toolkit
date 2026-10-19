@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2 (2026-10-19)
+
+- **`dc-compare --shots` photographs each band to the whole device pixel below its bottom edge**, no longer rounding to the nearest. A last row the band only partly covers belongs to the next band too, and Chromium 156, which Playwright 1.64 brings, paints it in the next band's colour where Chromium 155 painted it in this one's, so an identical band was reported as different whenever the band below differed: the test of exactly that failed on the new browser.
+- **`@astrojs/react` 7 is accepted beside 6**, as a peer. Tried on the template, 2026-10-19: no code changes (`defineSite()` calls `react()` with no options), and the build, QA, the routing check and Keystatic's editor all pass. The toolkit's own tests run on it.
+- The toolkit's own lock file rebuilt: `pnpm audit` found 2 high advisories in its test dependencies, and finds none now.
+
 ## 0.9.1 (2026-10-19)
 
 - **`heic.yml` survives a client saving again while it converts.** It works from the branch as it is when it runs, not the commit that started it, puts its commit on top of any save made meanwhile, and runs one at a time per repo. Before, a second save within the minute would have had its push refused, leaving the HEIC in place and every later build failing, since a later save adds no HEIC to start it again.

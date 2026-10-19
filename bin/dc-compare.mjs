@@ -135,7 +135,10 @@ async function photographAt(url, width) {
     // whole device pixel is not enough at 2x: the glyphs' edges still differed.
     const top = Math.ceil(band.top - 0.001);
     await page.evaluate((px) => { document.documentElement.style.marginTop = `${px}px`; }, margin + top - band.top);
-    band.height = Math.round(band.height * scale) / scale;
+    // Whole device pixels, rounded down: a last row the band only partly covers is the next
+    // band's too, and Chromium 156 paints it in the next band's colour where 155 painted it in
+    // this one's, so it would differ whenever the next band does (dc-toolkit 0.9.2).
+    band.height = Math.floor(band.height * scale + 0.001) / scale;
     // fullPage, so the clip is in page coordinates and nothing scrolls under a sticky header.
     band.png = await page.screenshot({
       fullPage: true, clip: { x: 0, y: top, width, height: band.height }, animations: 'disabled', caret: 'hide',
