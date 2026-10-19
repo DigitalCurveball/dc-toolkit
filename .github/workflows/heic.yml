@@ -28,9 +28,10 @@ jobs:
           echo "count=$(wc -l < "$RUNNER_TEMP/heic.txt")" >> "$GITHUB_OUTPUT"
           cat "$RUNNER_TEMP/heic.txt"
 
-      # libheif's own converter, from Ubuntu, which reads HEVC.
+      # libheif's own converter, from Ubuntu, and its HEVC decoder, a plugin of its own since
+      # libheif 1.17: without it, "Unsupported codec".
       - if: steps.find.outputs.count != '0'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libheif-examples
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libheif-examples libheif-plugin-libde265
 
       - if: steps.find.outputs.count != '0'
         run: |
