@@ -46,7 +46,7 @@ What stays in each site: `site`, fonts, Markdown settings and its own integratio
 
 ## The checks
 
-`dc-qa` runs axe-core (WCAG 2 A and AA), a horizontal-overflow check, a covered-text check and a menu-button check at 320, 400, 768 and 1280px, plus link, heading-order and meta checks once per page. axe runs at the narrowest and widest widths only; the middle two rarely differ and each scan costs a second or two. A second job in the QA workflow runs Lighthouse against the budgets in the site's `lighthouserc.json` (performance 95, accessibility 100, SEO 95), taking the median of three runs because a single run on a shared runner is noisy.
+`dc-qa` runs axe-core (WCAG 2 A and AA), a horizontal-overflow check, a covered-text check and a menu-button check at 320, 400, 768 and 1280px, plus link, heading-order and meta checks once per page. axe runs at the narrowest and widest widths only; the middle two rarely differ and each scan costs a second or two. The QA workflow then runs Lighthouse against the budgets in the site's `lighthouserc.json` (performance 95, accessibility 100, SEO 95), once a page and the first page twice, because Lighthouse CI asserts the best of a page's runs and only a run's first page, cold, ever scored apart from itself (the workflow's comments have the measurements). Its reports are kept, for 7 days, only from a run whose Lighthouse failed.
 
 | When | Target | How |
 |---|---|---|

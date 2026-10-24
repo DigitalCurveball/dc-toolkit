@@ -80,8 +80,15 @@ jobs:
 
       # Lighthouse runs even when the checks above failed, so a run shows both, and the failed
       # step's name says which: a Lighthouse flake is plainly not an accessibility failure.
-      # Budgets come from the runbook's QA gate: performance 95, accessibility 100, SEO 95.
-      # Median of three runs, because a single run on a shared runner is noisy.
+      # Budgets come from the site's lighthouserc.json: performance 95, accessibility 100, SEO 95.
+      #
+      # One run a page, and the first page twice. Lighthouse CI asserts the best of a page's runs
+      # (its default aggregationMethod, optimistic: Math.max of the scores), grouping them by
+      # URL. Three runs a page, over 41 pages of three sites, agreed within a point on every page
+      # except a run's first, cold: one home page scored 88, then 100 twice, and in another run
+      # 93, then 100 twice (2026-10-24; the sites are named in dc-pipeline's facts.md). So
+      # the first page runs again as its own warm-up, whose worse score is dropped, and the rest
+      # once: a third of the runs, which were three quarters of a run's minutes.
       #
       # The same pages as the checks: the paths in package.json's qa script, so the list lives
       # in one place. Left to find pages itself, Lighthouse takes the first five HTML files in
@@ -96,13 +103,27 @@ jobs:
           node -e "
             const config = require('./lighthouserc.json');
             const paths = require('./package.json').scripts.qa.match(/--path (\S+)/)[1].split(',');
-            config.ci.collect.url = paths.map((p) => 'http://localhost' + p);
+            config.ci.collect.url = [paths[0], ...paths].map((p) => 'http://localhost' + p);
+            config.ci.collect.numberOfRuns = 1;
             require('fs').writeFileSync('lighthouserc.ci.json', JSON.stringify(config, null, 2));
             console.log(config.ci.collect.url.join('\n'));
           "
       - name: Lighthouse
+        id: lighthouse
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: treosh/lighthouse-ci-action@v12
         with:
           configPath: ./lighthouserc.ci.json
-          uploadArtifacts: true
+
+      # The reports only when Lighthouse failed, which is when someone reads them. Uploaded from
+      # every run, at 15 to 27 MB a run on the larger sites, they held 2.4 GB against the Free
+      # plan's 500 MB of Actions storage (2026-10-24). `.lighthouseci` starts with a dot, which
+      # upload-artifact leaves out unless told.
+      - name: Lighthouse reports, as it failed
+        if: ${{ !cancelled() && steps.lighthouse.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci
+          include-hidden-files: true
+          retention-days: 7
