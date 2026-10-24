@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0 (2026-10-25)
+
+- **Lighthouse runs once a page, and the first page twice**, where it ran three times a page. Lighthouse CI asserts the best of a page's runs, and over 41 pages of three sites, three runs a page agreed within a point everywhere except a run's first page, cold; so that page runs again as its own warm-up, whose worse score is dropped. Lighthouse takes about a third of the time: 251 seconds for a 21-page site, where it took 698. The workflow sets `numberOfRuns`, so a site's `lighthouserc.json` no longer needs it.
+- **Lighthouse's reports are uploaded only when it fails**, as the artifact `lighthouse-reports`, kept 7 days. Uploaded from every run, at 15 to 27 MB a run on the larger sites, they held 2.4 GB of the account's Actions storage, of which the Free plan includes 500 MB.
+
 ## 0.10.0 (2026-10-19)
 
 - **The QA workflow spends about half the Actions minutes.** One job, `checks`, in place of `accessibility-and-layout` and `lighthouse`, which each installed and built the site; Lighthouse still runs when the checks fail, so a run shows both. A push to `main` that merges a pull request is skipped, since its pull request was checked on the same content, and that second run was half of what a release cost across the sites. A newer run on the same branch, with the same inputs, cancels an older one. The account's 2,000 monthly minutes ran out on 2026-10-19. The check's name changes, so anything that waits for a check by name needs the new one.
