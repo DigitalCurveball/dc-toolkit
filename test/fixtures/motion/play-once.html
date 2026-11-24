@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An effect that plays once</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  .above, .below { height: 1200px; }
+  #once { height: 400px; background: #eee; }
+</style>
+</head>
+<body>
+<div class="above"><p>The top of the page.</p></div>
+<div class="dc-motion" id="once" data-motion="once"></div>
+<div class="below"><p>The rest of the page.</p></div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  // An effect that plays once, recording the time of each frame it is asked to draw.
+  window.times = [];
+  register({ once: { loops: false, setup: () => ({ frame: (time) => void window.times.push(time) }) } });
+</script>
+</body>
+</html>

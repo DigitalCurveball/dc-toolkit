@@ -151,3 +151,15 @@ test('dc-qa fails white text over light colours, at the moment it is worst', asy
   assert.equal(contrast.find((c) => c.element === 'p').needs, 4.5);
   assert.equal(contrast.find((c) => c.element === 'h1').needs, 3);
 });
+
+test("an effect that plays once keeps its first moment until half of it is on the screen, then plays", async () => {
+  const { context, page } = await open('play-once');
+  // A quarter of it in view: near enough to start, not yet seen.
+  await page.evaluate(() => window.scrollTo(0, 500));
+  await running(page);
+  await page.waitForFunction(() => window.times.length > 10);
+  assert.ok(await page.evaluate(() => window.times.every((t) => t === 0)));
+  await page.evaluate(() => window.scrollTo(0, 900));
+  await page.waitForFunction(() => window.times.at(-1) > 0.2);
+  await context.close();
+});

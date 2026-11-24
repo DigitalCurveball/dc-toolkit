@@ -15,6 +15,8 @@
 //   resumes every effect, and shows its state in `aria-pressed`. It stays hidden until a looping
 //   effect runs, and the choice is remembered from page to page. A paused effect holds its frame.
 // - **Off-screen and in a hidden tab, nothing draws.**
+// - **An effect that plays once waits to be seen**: its clock holds at its first moment until half
+//   of it is on the screen (or it fills half the screen), so it isn't over before anyone sees it.
 // - **A lost WebGL context shows the still**, and the effect starts again if the context returns.
 //
 // The markup, the same on a site and in a concept (the components in this folder write it):
@@ -35,11 +37,12 @@
 // says the same later, such as when a shader compiled in the background turns out not to link.
 // `frame` draws the effect at `time`, in seconds of its own running, and depends on nothing else but
 // the pointer, so a check can draw any moment (`window.dcMotion.seek`). It returns false when it
-// can't draw yet (its shader still compiling), and is asked again next frame; the layer fades in
-// at the first frame it draws. `fps` caps how often it draws, 60 by default: a slow drift looks the
+// can't draw yet (its shader still compiling), or has nothing new to draw, and is asked again next
+// frame; the layer fades in at the first frame it draws. `fps` caps how often it draws, 60 by default: a slow drift looks the
 // same at 30 for half the work, which matters most on a phone's battery. An effect with no `frame`
 // animates in CSS, paused through its element's `data-motion-state`. `loops` is false for an
-// effect that plays once and stops within five seconds, which needs no pause control.
+// effect that plays once and stops within five seconds, which needs no pause control, and whose
+// clock starts when it is seen.
 //
 // Plain JavaScript with no build and no imports, so a concept runs the same file the site does.
 
@@ -52,6 +55,7 @@ let paused = readPaused();
 let hidden = document.hidden;
 let begun = false;
 let observer = null;
+let watcher = null;
 let resizer = null;
 let raf = 0;
 let last = 0;
@@ -59,7 +63,9 @@ let last = 0;
 /** Makes effects available by name, and starts any on the page once it has loaded. */
 export function register(named) {
   for (const [name, effect] of Object.entries(named)) effects.set(name, effect);
-  if (begun) return scan();
+  if (observer) return scan();
+  // Another effect's script registered first (a page with two components): begin() finds this one too.
+  if (begun) return;
   begun = true;
   const idle = () => (window.requestIdleCallback ? requestIdleCallback(begin, { timeout: 2000 }) : setTimeout(begin, 200));
   if (document.readyState === 'complete') idle();
@@ -68,6 +74,7 @@ export function register(named) {
 
 function begin() {
   observer = new IntersectionObserver(onIntersect, { rootMargin: '200px 0px' });
+  watcher = new IntersectionObserver(onSeen, { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] });
   resizer = new ResizeObserver((entries) => entries.forEach((entry) => measure(records.get(entry.target))));
   document.addEventListener('visibilitychange', () => {
     hidden = document.hidden;
@@ -85,6 +92,11 @@ function begin() {
     update();
   });
   addEventListener('pointermove', onPointer, { passive: true });
+  // A pointer that leaves the window has left every effect, though no pointermove says so.
+  document.addEventListener('pointerout', (event) => {
+    if (event.relatedTarget) return;
+    for (const record of records.values()) if (record.pointer) record.pointer.inside = false;
+  });
   scan();
 }
 
@@ -92,7 +104,7 @@ function scan() {
   bindToggles();
   for (const el of document.querySelectorAll('[data-motion]')) {
     if (records.has(el) || !effects.has(el.dataset.motion)) continue;
-    const record = { el, name: el.dataset.motion, state: 'still', reason: null, visible: false, inst: null, layer: null, loops: false, time: 0, drawn: false, lost: false, loading: false, pointer: null };
+    const record = { el, name: el.dataset.motion, state: 'still', reason: null, visible: false, inst: null, layer: null, loops: false, time: 0, drawn: false, lost: false, loading: false, pointer: null, seen: false };
     records.set(el, record);
     setState(record, 'still');
     if (!reduce.matches) observer.observe(el);
@@ -108,6 +120,15 @@ function onIntersect(entries) {
     if (record.visible && !record.inst && !record.loading && record.state !== 'failed') setup(record);
   }
   update();
+}
+
+function onSeen(entries) {
+  for (const entry of entries) {
+    const record = records.get(entry.target);
+    if (!record || entry.intersectionRect.height < Math.min(entry.boundingClientRect.height, innerHeight) / 2) continue;
+    record.seen = true;
+    watcher.unobserve(entry.target);
+  }
 }
 
 async function setup(record) {
@@ -142,6 +163,7 @@ async function setup(record) {
   record.drawn = false;
   record.lost = false;
   resizer.observe(record.el);
+  if (!record.loops && !record.seen) watcher.observe(record.el);
   measure(record);
   if (!inst.frame) reveal(record);
   if (record.loops) showToggles();
@@ -243,7 +265,7 @@ function tick(now) {
   for (const record of records.values()) {
     if (!record.inst?.frame || record.lost) continue;
     if (record.state === 'running') {
-      record.time += delta;
+      if (record.loops || record.seen) record.time += delta;
       record.since += delta;
       if (record.since >= record.interval - 0.004 || !record.drawn) draw(record, Math.min(record.since, 0.1));
       any = true;
