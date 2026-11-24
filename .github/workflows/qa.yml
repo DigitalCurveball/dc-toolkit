@@ -115,10 +115,10 @@ jobs:
         with:
           configPath: ./lighthouserc.ci.json
 
-      # Every page's scores in the job summary, and the log, which can be read through the API as the
-      # summary can't, from a run that passed as from one that failed, so
-      # a page near its budget is seen before it fails one: /motion/ sat at the edge of it,
-      # passing and failing on the same commit, and a passing run said nothing (dc-pipeline #61).
+      # Every page's scores in the job summary, and in the log, which GitHub's API can read as it
+      # can't the summary, from a run that passed as from one that failed: a page near its budget
+      # is seen before it fails one. /motion/ sat at the edge of it, passing and failing on the same
+      # commit, and a passing run said nothing (dc-pipeline #61).
       - name: Lighthouse scores
         if: ${{ !cancelled() && (steps.lighthouse.outcome == 'success' || steps.lighthouse.outcome == 'failure') }}
         run: |
