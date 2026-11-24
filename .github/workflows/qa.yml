@@ -115,7 +115,8 @@ jobs:
         with:
           configPath: ./lighthouserc.ci.json
 
-      # Every page's scores in the job summary, from a run that passed as from one that failed, so
+      # Every page's scores in the job summary, and the log, which can be read through the API as the
+      # summary can't, from a run that passed as from one that failed, so
       # a page near its budget is seen before it fails one: /motion/ sat at the edge of it,
       # passing and failing on the same commit, and a passing run said nothing (dc-pipeline #61).
       - name: Lighthouse scores
@@ -133,7 +134,7 @@ jobs:
               lines.push(`| ${page} | ${score(r, "performance")} | ${score(r, "accessibility")} | ${score(r, "seo")} | ${score(r, "best-practices")} | ${r.audits["total-blocking-time"].displayValue} |`);
             }
             console.log(lines.join("\n"));
-          ' >> "$GITHUB_STEP_SUMMARY"
+          ' | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The reports only when Lighthouse failed, which is when someone reads them. Uploaded from
       # every run, at 15 to 27 MB a run on the larger sites, they held 2.4 GB against the Free
