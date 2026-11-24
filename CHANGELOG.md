@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased, on the `motion` branch
+
+- **Motion effects** (`dc-toolkit/motion`, README "Motion"; dc-pipeline issue #48): a runtime every effect shares (the still first, nothing until the page has loaded, reduced motion as the still, one pause control for the page, nothing drawn off-screen, a lost WebGL context handled), `MotionToggle.astro`, and the first effect, `Gradient.astro`, a moving background in the brand's colours (#50).
+- **`dc-qa` checks motion** on a page that has it: a still without scripts and under reduced motion, each effect starting, the pause control pausing and resuming, and the text over each effect measured against its still and eight moments of its movement (`src/motion-checks.mjs`).
+
 ## 0.11.0 (2026-10-25)
 
 - **Lighthouse runs once a page, and the first page twice**, where it ran three times a page. Lighthouse CI asserts the best of a page's runs, and over 41 pages of three sites, three runs a page agreed within a point everywhere except a run's first page, cold; so that page runs again as its own warm-up, whose worse score is dropped. Lighthouse takes about a third of the time: 251 seconds for a 21-page site, where it took 698. The workflow sets `numberOfRuns`, so a site's `lighthouserc.json` no longer needs it.

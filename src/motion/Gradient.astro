@@ -1,0 +1,48 @@
+---
+// The moving background in the brand's colours (gradient.js) around a section's content:
+//
+//   <Gradient as="section" colors={['#111111', '#ff3333', '#666666']} enabled={hero.motion}>…</Gradient>
+//
+// The element carries its still as its background, so it is right without scripts, under reduced
+// motion and before the effect has started. `enabled` is the editor's on/off: off, the element
+// keeps its still and nothing runs. The page needs a MotionToggle too, and text over the effect
+// must pass contrast against every colour it passes through (dc-qa checks both). Any other
+// attribute goes on the element.
+
+import { still } from './gradient.js';
+import './motion.css';
+
+interface Props {
+  /** Two to five colours in hex, the first the ground. */
+  colors: string[];
+  /** 1 by default; 0.5 is half as fast. */
+  speed?: number;
+  /** How far the fields lean toward a mouse or pen, 0.5 by default; 0 ignores it. */
+  pointer?: number;
+  /** A static texture against banding, 0.03 by default; 0 for none. */
+  grain?: number;
+  /** The editor's on/off for the effect: off shows the still. */
+  enabled?: boolean;
+  /** The element to render, `div` by default. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { colors, speed, pointer, grain, enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+const options = JSON.stringify({ colors, speed, pointer, grain });
+---
+
+<Element
+  {...attributes}
+  class:list={['dc-motion', className]}
+  style={`background: ${still(colors)}`}
+  data-motion={enabled ? 'gradient' : undefined}
+  data-motion-options={enabled ? options : undefined}
+><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ gradient: () => import('./gradient.js') });
+</script>
