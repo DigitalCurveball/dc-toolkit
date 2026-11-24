@@ -1,0 +1,47 @@
+---
+// The logo formed from particles (particle-logo.js), around the logo it is made from:
+//
+//   <ParticleLogo as="figure" class="hero-logo" enabled={hero.motion}><img src={logo.src} alt="…" width="…" height="…" /></ParticleLogo>
+//
+// The logo inside, an inline <svg> or an <img> of an SVG or of a PNG on a transparent ground, is
+// the still: it shows without scripts, under reduced motion and until the dots have drawn, and
+// keeps its name for assistive technology throughout. Give the element room around the logo, for
+// the dots to gather from. It plays once and needs no MotionToggle of its own. `enabled` is the
+// editor's on/off: off, the logo stays as it is and nothing runs. Any other attribute goes on the
+// element.
+
+import './motion.css';
+
+interface Props {
+  /** The distance between dots in CSS pixels, at the logo's size: 3 by default. */
+  spacing?: number;
+  /** How fast the dots gather, 1 by default; 0.5 is half as fast. */
+  speed?: number;
+  /** How far a mouse or pen pushes the dots, 1 by default; 0 ignores it. */
+  pointer?: number;
+  /** How far the dots drift apart as the logo scrolls off the top, 1 by default; 0 keeps it whole. */
+  scroll?: number;
+  /** The editor's on/off for the effect: off shows the logo itself. */
+  enabled?: boolean;
+  /** The element to render, `div` by default. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { spacing, speed, pointer, scroll, enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+const options = JSON.stringify({ spacing, speed, pointer, scroll });
+---
+
+<Element
+  {...attributes}
+  class:list={['dc-motion', className]}
+  data-motion={enabled ? 'particle-logo' : undefined}
+  data-motion-options={enabled ? options : undefined}
+><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ 'particle-logo': () => import('./particle-logo.js') });
+</script>

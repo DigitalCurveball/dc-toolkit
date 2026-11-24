@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two effects, each registered by its own script</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  .hero { min-height: 80vh; display: grid; place-content: center; padding: 2rem; color: #fff; }
+  h1 { font-size: 3rem; margin: 0; }
+  .dc-motion-toggle { position: absolute; top: 1rem; right: 1rem; }
+  #logo { display: grid; place-items: center; width: 600px; height: 500px; margin: 0; }
+  #logo svg { display: block; width: 300px; height: 300px; }
+  .below { height: 150vh; }
+</style>
+</head>
+<body>
+<section class="hero dc-motion" id="hero" data-motion="gradient" data-motion-options='{"colors":["#111111","#3a1414","#1e1e3c"]}' style="background: radial-gradient(56% 66% at 86% 16%, rgb(30 30 60 / 1) 0%, rgb(30 30 60 / 0.84375) 25%, rgb(30 30 60 / 0.5) 50%, rgb(30 30 60 / 0.15625) 75%, rgb(30 30 60 / 0) 100%), radial-gradient(62% 70% at 16% 20%, rgb(58 20 20 / 1) 0%, rgb(58 20 20 / 0.84375) 25%, rgb(58 20 20 / 0.5) 50%, rgb(58 20 20 / 0.15625) 75%, rgb(58 20 20 / 0) 100%), rgb(17 17 17)">
+  <button type="button" class="dc-motion-toggle" aria-pressed="false" hidden>Pause motion</button>
+  <h1>A heading over motion</h1>
+  <p>A line of body text over the moving background.</p>
+</section>
+<figure class="dc-motion" id="logo" data-motion="particle-logo">
+  <svg viewBox="0 0 100 100" role="img" aria-label="A square and a circle"><rect width="45" height="45" fill="#d81e1e"/><circle cx="72" cy="72" r="26" fill="#555555"/></svg>
+</figure>
+<div class="below"><p>The rest of the page.</p></div>
+<!-- As two components write them: each effect's own script registers it, before the page has loaded. -->
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ gradient: () => import('/src/motion/gradient.js') });
+</script>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ 'particle-logo': () => import('/src/motion/particle-logo.js') });
+</script>
+</body>
+</html>

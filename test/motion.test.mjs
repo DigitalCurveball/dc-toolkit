@@ -163,3 +163,141 @@ test("an effect that plays once keeps its first moment until half of it is on th
   await page.waitForFunction(() => window.times.at(-1) > 0.2);
   await context.close();
 });
+
+// The particle logo (particle-logo.js), from fixtures/motion/particle-logo.html: a 300px logo, a
+// red square over a grey circle, centred in a 600 by 500 figure.
+
+const drawn = (page) => page.waitForFunction(() => document.querySelector('#logo > canvas.is-shown'), null, { timeout: 10000 });
+
+/** Of the dots drawn, how many, and the share inside the logo's box. */
+const dots = (page) => page.evaluate(() => {
+  const figure = document.querySelector('#logo');
+  const canvas = figure.querySelector(':scope > canvas');
+  const scale = canvas.width / figure.clientWidth;
+  const f = figure.getBoundingClientRect();
+  const l = figure.querySelector('svg, img').getBoundingClientRect();
+  const [x0, y0, x1, y1] = [l.left - f.left, l.top - f.top, l.right - f.left, l.bottom - f.top].map((n) => n * scale);
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let total = 0;
+  let inside = 0;
+  for (let p = 0; p < data.length / 4; p++) {
+    if (data[p * 4 + 3] < 128) continue;
+    total++;
+    const x = p % canvas.width;
+    const y = Math.floor(p / canvas.width);
+    if (x >= x0 && x < x1 && y >= y0 && y < y1) inside++;
+  }
+  return { total, inside: inside / total };
+});
+
+/** What is drawn in a 12px square around a point on the logo, in CSS pixels from its top left: the share painted, and its mean colour. */
+const patch = (page, x, y) => page.evaluate(([x, y]) => {
+  const figure = document.querySelector('#logo');
+  const canvas = figure.querySelector(':scope > canvas');
+  const scale = canvas.width / figure.clientWidth;
+  const f = figure.getBoundingClientRect();
+  const l = figure.querySelector('svg, img').getBoundingClientRect();
+  const size = Math.round(12 * scale);
+  const left = Math.round((l.left - f.left + x - 6) * scale);
+  const top = Math.round((l.top - f.top + y - 6) * scale);
+  const { data } = canvas.getContext('2d').getImageData(left, top, size, size);
+  let painted = 0;
+  const sum = [0, 0, 0];
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue;
+    painted++;
+    for (let c = 0; c < 3; c++) sum[c] += data[i + c];
+  }
+  return { painted: painted / (size * size), colour: sum.map((s) => Math.round(s / Math.max(painted, 1))) };
+}, [x, y]);
+
+test('the particle logo draws the logo in dots of its own colours, and hides the logo under them', async () => {
+  const { context, page } = await open('particle-logo');
+  await drawn(page);
+  await page.evaluate(() => window.dcMotion.pause());
+  await page.evaluate(() => window.dcMotion.seek(10));
+  const square = await patch(page, 67, 67);
+  assert.ok(square.painted > 0.3, `the square is drawn (${square.painted})`);
+  assert.ok(square.colour.every((c, i) => Math.abs(c - [216, 30, 30][i]) < 12), `in the page's red (${square.colour})`);
+  const circle = await patch(page, 216, 216);
+  assert.ok(circle.colour.every((c) => Math.abs(c - 85) < 12), `the circle in its grey (${circle.colour})`);
+  assert.equal((await patch(page, 230, 40)).painted, 0); // where the logo has nothing
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('#logo svg')).opacity === '0');
+  await context.close();
+});
+
+test('the particle logo starts as scattered dots, gathers within three seconds, and needs no pause control', async () => {
+  const { context, page } = await open('particle-logo');
+  await drawn(page);
+  await page.evaluate(() => window.dcMotion.pause());
+  await page.evaluate(() => window.dcMotion.seek(0));
+  const scattered = await dots(page);
+  await page.evaluate(() => window.dcMotion.seek(3));
+  const gathered = await dots(page);
+  assert.ok(scattered.inside < 0.7, `scattered at first (${scattered.inside} inside the logo)`);
+  assert.ok(gathered.inside > 0.99, `gathered by three seconds (${gathered.inside})`);
+  assert.equal(await page.evaluate(() => window.dcMotion.instances()[0].loops), false);
+  assert.equal(await page.locator('.dc-motion-toggle').count(), 0);
+  await context.close();
+});
+
+test("the particle logo's dots move aside from a mouse, and spring back when it leaves", async () => {
+  const { context, page } = await open('particle-logo');
+  await drawn(page);
+  await page.waitForTimeout(3000); // gathered
+  const box = await page.locator('#logo svg').boundingBox();
+  await page.mouse.move(box.x + 67, box.y + 67, { steps: 4 });
+  await page.waitForTimeout(500);
+  assert.ok((await patch(page, 67, 67)).painted < 0.05, 'pushed aside');
+  await page.mouse.move(box.x + 450, box.y + 450, { steps: 4 });
+  await page.waitForTimeout(1500);
+  assert.ok((await patch(page, 67, 67)).painted > 0.3, 'back in place');
+  await context.close();
+});
+
+test("the particle logo's dots drift apart as it scrolls off the top, and gather when it returns", async () => {
+  const { context, page } = await open('particle-logo');
+  await drawn(page);
+  await page.waitForTimeout(3000);
+  await page.evaluate(() => window.scrollTo(0, 250));
+  await page.waitForTimeout(300);
+  const apart = await dots(page);
+  assert.ok(apart.inside < 0.8, `apart (${apart.inside} inside the logo)`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  assert.ok((await dots(page)).inside > 0.99, 'together again');
+  await context.close();
+});
+
+test('the particle logo works from an <img> of the logo too', async () => {
+  const { context, page } = await open('particle-logo-img');
+  await drawn(page);
+  await page.evaluate(() => window.dcMotion.pause());
+  await page.evaluate(() => window.dcMotion.seek(10));
+  const { total, inside } = await dots(page);
+  assert.ok(total > 1000 && inside > 0.99, `${total} dot pixels, ${inside} inside`);
+  assert.ok((await patch(page, 67, 67)).colour[0] > 200);
+  await context.close();
+});
+
+test('under reduced motion the particle logo is the logo itself', async () => {
+  const { context, page } = await open('particle-logo', { reducedMotion: 'reduce' });
+  await page.waitForTimeout(1500);
+  assert.deepEqual(await states(page), ['still']);
+  assert.equal(await page.locator('#logo > canvas').count(), 0);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#logo svg')).opacity), '1');
+  await context.close();
+});
+
+test('dc-qa passes the particle logo, which plays once and needs no pause control', async () => {
+  const result = await checkMotion(browser, fixture('particle-logo'));
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.effects.map((e) => [e.name, e.loops]), [['the "particle-logo" effect (#logo)', false]]);
+});
+
+test('two effects registered by their own scripts, as two components write them, both start', async () => {
+  const { context, page } = await open('two-effects');
+  await page.waitForFunction(() => window.dcMotion?.instances().every((i) => i.state === 'running'), null, { timeout: 10000 }).catch(() => {});
+  assert.deepEqual(await states(page), ['running', 'running']);
+  await context.close();
+});
