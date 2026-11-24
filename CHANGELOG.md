@@ -5,6 +5,8 @@
 - **Motion effects** (`dc-toolkit/motion`, README "Motion"; dc-pipeline issue #48): a runtime every effect shares (the still first, nothing until the page has loaded, reduced motion as the still, one pause control for the page, nothing drawn off-screen, a lost WebGL context handled, an effect that plays once held at its first moment until it is seen, WebGL effects only on a graphics chip and their stills where WebGL is drawn in software), `MotionToggle.astro`, and the first effects: `Gradient.astro`, a moving background in the brand's colours (#50), `ParticleLogo.astro`, the logo formed from particles (#51), and `Ripple.astro`, photos that ripple under the cursor or a tap (#52).
 - **`dc-qa` checks motion** on a page that has it: a still without scripts and under reduced motion, each effect starting, the pause control pausing and resuming, and the text over each effect measured against its still and eight moments of its movement (`src/motion-checks.mjs`).
 
+- **Every page's Lighthouse scores in the QA run's summary**, performance, accessibility, SEO, best practices and blocking time, from a run that passed as from one that failed: a page near its budget is seen before it fails one (dc-pipeline #61).
+
 ## 0.11.0 (2026-10-25)
 
 - **Lighthouse runs once a page, and the first page twice**, where it ran three times a page. Lighthouse CI asserts the best of a page's runs, and over 41 pages of three sites, three runs a page agreed within a point everywhere except a run's first page, cold; so that page runs again as its own warm-up, whose worse score is dropped. Lighthouse takes about a third of the time: 251 seconds for a 21-page site, where it took 698. The workflow sets `numberOfRuns`, so a site's `lighthouserc.json` no longer needs it.
