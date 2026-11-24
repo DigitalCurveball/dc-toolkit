@@ -2,6 +2,11 @@
 // covers the canvas. WebGL 1, which every browser that can run these has, on the low-power GPU
 // where there are two, with the context's loss and return passed to the runtime (runtime.js), so
 // the still shows meanwhile.
+//
+// The shader compiles in the background where the browser can (KHR_parallel_shader_compile, in
+// Chromium): asking whether a shader compiled blocks the page until it has, which on a phone, or
+// a machine drawing WebGL in software, is a long task in the middle of loading. `status()` says
+// 'compiling' until it is done, and the effect draws nothing till then.
 
 const VERTEX = `
 attribute vec2 a_position;
@@ -9,21 +14,45 @@ void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
 `;
 
 /**
- * A shader surface on `canvas`, or null where WebGL or the shader is unavailable.
- * `uniform(name)` is a uniform's location; `draw()` draws the whole canvas.
+ * A shader surface on `canvas`, or null where WebGL is unavailable. `status()` is 'compiling',
+ * 'ready' or 'failed'; once ready, `uniform(name)` is a uniform's location and `draw()` draws the
+ * whole canvas.
  */
 export function surface(canvas, fragment, { lost, restored } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' });
   if (!gl) return null;
-  const program = link(gl, fragment);
-  if (!program) return null;
-  gl.useProgram(program);
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const position = gl.getAttribLocation(program, 'a_position');
-  gl.enableVertexAttribArray(position);
-  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+  const parallel = gl.getExtension('KHR_parallel_shader_compile');
+  const program = gl.createProgram();
+  const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, fragment]].map(([type, source]) => {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    gl.attachShader(program, shader);
+    return shader;
+  });
+  gl.linkProgram(program);
+
+  // Asked only once compiling is done, so it never waits.
+  const finish = () => {
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      if (!gl.isContextLost()) {
+        for (const shader of shaders) {
+          const log = gl.getShaderInfoLog(shader);
+          if (log) console.error('dc-motion: a shader did not compile', log);
+        }
+        console.error('dc-motion: a shader did not link', gl.getProgramInfoLog(program));
+      }
+      return 'failed';
+    }
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    return 'ready';
+  };
+  let status = parallel ? 'compiling' : finish();
 
   let destroyed = false;
   canvas.addEventListener('webglcontextlost', (event) => {
@@ -37,6 +66,10 @@ export function surface(canvas, fragment, { lost, restored } = {}) {
   const locations = new Map();
   return {
     gl,
+    status() {
+      if (status === 'compiling' && gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)) status = finish();
+      return status;
+    },
     uniform(name) {
       if (!locations.has(name)) locations.set(name, gl.getUniformLocation(program, name));
       return locations.get(name);
@@ -50,26 +83,6 @@ export function surface(canvas, fragment, { lost, restored } = {}) {
       gl.getExtension('WEBGL_lose_context')?.loseContext(); // frees the GPU's memory now, not at collection
     },
   };
-}
-
-function link(gl, fragment) {
-  const program = gl.createProgram();
-  for (const [type, source] of [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, fragment]]) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS) && !gl.isContextLost()) {
-      console.error('dc-motion: a shader did not compile', gl.getShaderInfoLog(shader));
-      return null;
-    }
-    gl.attachShader(program, shader);
-  }
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS) && !gl.isContextLost()) {
-    console.error('dc-motion: a shader did not link', gl.getProgramInfoLog(program));
-    return null;
-  }
-  return program;
 }
 
 /** A colour as CSS writes it in hex (#rgb or #rrggbb) as three numbers from 0 to 1, or null. */

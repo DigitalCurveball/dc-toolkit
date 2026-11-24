@@ -29,11 +29,15 @@
 //
 // An effect module's default export:
 //
-//   { loops: true, setup(element, kit) { …; return { frame(time, delta), resize(width, height, dpr), destroy() } } }
+//   { loops: true, fps: 30, setup(element, kit) { …; return { frame(time, delta), resize(width, height, dpr), destroy() } } }
 //
-// `setup` returns null when the effect can't run (no WebGL, say), and the still stays. `frame`
-// draws the effect at `time`, in seconds of its own running, and depends on nothing else but the
-// pointer, so a check can draw any moment (`window.dcMotion.seek`). An effect with no `frame`
+// `setup` returns null when the effect can't run (no WebGL, say), and the still stays; `kit.failed()`
+// says the same later, such as when a shader compiled in the background turns out not to link.
+// `frame` draws the effect at `time`, in seconds of its own running, and depends on nothing else but
+// the pointer, so a check can draw any moment (`window.dcMotion.seek`). It returns false when it
+// can't draw yet (its shader still compiling), and is asked again next frame; the layer fades in
+// at the first frame it draws. `fps` caps how often it draws, 60 by default: a slow drift looks the
+// same at 30 for half the work, which matters most on a phone's battery. An effect with no `frame`
 // animates in CSS, paused through its element's `data-motion-state`. `loops` is false for an
 // effect that plays once and stops within five seconds, which needs no pause control.
 //
@@ -132,6 +136,8 @@ async function setup(record) {
   if (!inst) return fail(record, 'unsupported');
   record.inst = inst;
   record.loops = Boolean(effect.loops);
+  record.interval = 1 / (effect.fps ?? 60);
+  record.since = Infinity;
   record.time = 0;
   record.drawn = false;
   record.lost = false;
@@ -172,6 +178,11 @@ function kit(record) {
       record.layer?.classList.remove('is-shown');
       update();
     },
+    /** The effect can't run after all: the still stays. */
+    failed() {
+      fail(record, 'unsupported');
+      update();
+    },
     /** The context returned: the effect starts again, from its own setup. */
     restored() {
       teardown(record);
@@ -190,7 +201,8 @@ function measure(record) {
 
 function draw(record, delta) {
   if (!record.inst?.frame || record.lost) return;
-  record.inst.frame(record.time, delta);
+  if (record.inst.frame(record.time, delta) === false) return;
+  record.since = 0;
   if (!record.drawn) reveal(record);
 }
 
@@ -210,8 +222,9 @@ function update() {
       else if (record.state === 'running') record.inst.pause?.();
       setState(record, state);
     }
-    // A paused effect that has not drawn yet (paused on an earlier page) shows its first moment.
-    if (!running && !record.drawn && record.visible) draw(record, 0);
+    // An effect that has not drawn yet shows its first moment, even paused (paused on an earlier
+    // page), and is asked again each frame until it can.
+    if (record.inst.frame && !record.drawn && record.visible && !record.lost) anyRunning = true;
     if (running && record.inst.frame) anyRunning = true;
   }
   // For effects that animate in CSS: `[data-motion-paused]` on <html> while the visitor has paused.
@@ -228,10 +241,16 @@ function tick(now) {
   last = now;
   let any = false;
   for (const record of records.values()) {
-    if (record.state !== 'running' || !record.inst?.frame) continue;
-    record.time += delta;
-    draw(record, delta);
-    any = true;
+    if (!record.inst?.frame || record.lost) continue;
+    if (record.state === 'running') {
+      record.time += delta;
+      record.since += delta;
+      if (record.since >= record.interval - 0.004 || !record.drawn) draw(record, Math.min(record.since, 0.1));
+      any = true;
+    } else if (!record.drawn && record.visible) {
+      draw(record, 0);
+      any = true;
+    }
   }
   if (any) raf = requestAnimationFrame(tick);
 }

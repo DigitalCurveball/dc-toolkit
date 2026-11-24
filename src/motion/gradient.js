@@ -11,6 +11,11 @@
 //   speed    1; 0.5 is half as fast
 //   pointer  how far the fields lean toward a mouse or pen, 0.5; 0 ignores it
 //   grain    0.03, a static texture that keeps the gradients from banding; 0 for none
+//
+// It draws at half the element's CSS pixels and 30 frames a second: a soft, slow gradient looks
+// the same scaled up and at that rate, for an eighth of the work at full size and 60, which is
+// what decides it on a phone's battery and in a lab test's throttled CPU (CI's Lighthouse drew
+// it in software at 560 ms of blocking time at full size and 60, 2026-11-24).
 
 import { rgb, surface } from './gl.js';
 
@@ -87,6 +92,7 @@ void main() {
 
 export default {
   loops: true,
+  fps: 30,
   setup(element, kit) {
     const options = { speed: 1, pointer: 0.5, grain: 0.03, ...kit.options };
     const [ground, ...colours] = (options.colors ?? []).slice(0, 5).map(rgb);
@@ -96,27 +102,33 @@ export default {
     }
     const canvas = kit.layer('canvas');
     const shader = surface(canvas, FRAGMENT, { lost: kit.lost, restored: kit.restored });
-    if (!shader) return null;
+    if (!shader || shader.status() === 'failed') return null;
     const { gl, uniform } = shader;
-    gl.uniform3fv(uniform('u_ground'), ground);
-    gl.uniform3fv(uniform('u_color'), pad(colours.flat(), 12));
-    gl.uniform2fv(uniform('u_extent'), pad(FIELDS.flatMap((f) => f.size), 8));
-    gl.uniform1f(uniform('u_count'), colours.length);
-    gl.uniform1f(uniform('u_grain'), options.grain);
+    let primed = false;
+    // The uniforms that never change, set once the shader is ready to take them.
+    const prime = () => {
+      gl.uniform3fv(uniform('u_ground'), ground);
+      gl.uniform3fv(uniform('u_color'), pad(colours.flat(), 12));
+      gl.uniform2fv(uniform('u_extent'), pad(FIELDS.flatMap((f) => f.size), 8));
+      gl.uniform1f(uniform('u_count'), colours.length);
+      gl.uniform1f(uniform('u_grain'), options.grain);
+      primed = true;
+    };
 
     const pointer = kit.pointer();
     const lean = { x: 0.5, y: 0.5, amount: 0 };
     const at = new Float32Array(8);
 
     return {
-      resize(width, height, dpr) {
-        // A soft gradient gains nothing from more pixels than CSS has.
-        const scale = Math.min(dpr, 1);
-        canvas.width = Math.max(1, Math.round(width * scale));
-        canvas.height = Math.max(1, Math.round(height * scale));
-        gl.uniform2f(uniform('u_size'), canvas.width, canvas.height);
+      resize(width, height) {
+        canvas.width = Math.max(1, Math.round(width / 2));
+        canvas.height = Math.max(1, Math.round(height / 2));
       },
       frame(time, delta) {
+        const status = shader.status();
+        if (status === 'failed') kit.failed();
+        if (status !== 'ready') return false;
+        if (!primed) prime();
         // The lean eases toward the pointer while it is over the element, and back when it leaves.
         const reach = options.pointer > 0 && pointer.inside ? 1 : 0;
         const ease = 1 - Math.exp(-delta * 2.5);
@@ -133,6 +145,7 @@ export default {
           at[i * 2] = x + dx + (lean.x - x) * pull;
           at[i * 2 + 1] = y + dy + (lean.y - y) * pull;
         });
+        gl.uniform2f(uniform('u_size'), canvas.width, canvas.height);
         gl.uniform2fv(uniform('u_at'), at);
         gl.uniform1f(uniform('u_time'), t);
         shader.draw();
