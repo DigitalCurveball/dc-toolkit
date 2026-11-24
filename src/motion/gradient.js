@@ -27,8 +27,9 @@ const FIELDS = [
   { at: [0.7, 0.9], size: [0.66, 0.62], drift: [0.24, 0.15], phase: [1.3, 2.8] },
   { at: [0.1, 0.88], size: [0.5, 0.58], drift: [0.18, 0.2], phase: [3.4, 4.1] },
 ];
-const DRIFT = 0.14; // how far a field wanders, as a fraction of the element
-const WARP = 0.16; // how far the noise bends space
+const DRIFT = 0.2; // how far a field wanders, as a fraction of the element
+const TEMPO = 2.2; // how fast the fields wander, times their drift frequencies
+const WARP = 0.2; // how far the noise bends space
 const LEAN = 0.22; // how far the fields lean toward the pointer at `pointer: 1`
 
 // One minus smoothstep, at the quarters: the shader's falloff as stops CSS can draw.
@@ -73,7 +74,7 @@ float noise(vec2 p) {
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 vec2 bend(vec2 uv, float t) {
-  return vec2(noise(uv * 1.7 + vec2(t * 0.07, 0.0)), noise(uv * 1.7 + vec2(5.2, t * 0.06))) - 0.5;
+  return vec2(noise(uv * 1.7 + vec2(t * 0.16, 0.0)), noise(uv * 1.7 + vec2(5.2, t * 0.13))) - 0.5;
 }
 
 void main() {
@@ -139,8 +140,8 @@ export default {
         }
         const t = time * options.speed;
         FIELDS.forEach(({ at: [x, y], drift: [fx, fy], phase: [px, py] }, i) => {
-          const dx = DRIFT * (Math.sin(t * fx + px) - Math.sin(px));
-          const dy = DRIFT * (Math.cos(t * fy + py) - Math.cos(py));
+          const dx = DRIFT * (Math.sin(t * TEMPO * fx + px) - Math.sin(px));
+          const dy = DRIFT * (Math.cos(t * TEMPO * fy + py) - Math.cos(py));
           const pull = LEAN * options.pointer * lean.amount;
           at[i * 2] = x + dx + (lean.x - x) * pull;
           at[i * 2 + 1] = y + dy + (lean.y - y) * pull;
