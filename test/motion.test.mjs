@@ -303,7 +303,8 @@ test('two effects registered by their own scripts, as two components write them,
 });
 
 // The rippling photos (ripple.js), from fixtures/motion/ripple.html: #top on the screen when the
-// page opens, #below further down, cropped to another shape with object-fit: cover.
+// page opens, #below further down, a raster chosen through srcset and cropped to another shape with
+// object-fit: cover; and fixtures/motion/ripple-two.html, two different photos side by side.
 
 /** Counts the WebGL contexts the page asks for. */
 const countWebGL = (context) => context.addInitScript(() => {
@@ -317,31 +318,37 @@ const countWebGL = (context) => context.addInitScript(() => {
 
 const shown = (page, id) => page.evaluate((id) => document.querySelector(`#${id} > canvas`)?.classList.contains('is-shown') ?? false, id);
 
-/** How far the drawn ripple is from the photo as the page shows it, over the photo's own box: the mean difference of each colour, from 0 to 255. */
-const difference = (page, id) => page.evaluate((id) => {
-  const figure = document.querySelector(`#${id}`);
-  const canvas = figure.querySelector(':scope > canvas');
-  const img = figure.querySelector('img');
-  const scale = canvas.width / figure.clientWidth;
-  const f = figure.getBoundingClientRect();
-  const box = img.getBoundingClientRect();
-  const [left, top, width, height] = [box.left - f.left, box.top - f.top, box.width, box.height].map((n) => Math.round(n * scale));
-  const reference = document.createElement('canvas');
-  reference.width = width;
-  reference.height = height;
-  const context = reference.getContext('2d');
+/**
+ * Draws every effect at `time` and reads one photo's ripple in the same task, while its drawing
+ * buffer holds the frame: how far it is from the photo as the page shows it, the mean difference
+ * of each colour, from 0 to 255.
+ */
+const difference = (page, id, time) => page.evaluate(([id, time]) => {
+  window.dcMotion.seek(time);
+  const layer = document.querySelector(`#${id} > canvas`);
+  const img = document.querySelector(`#${id} img`);
+  const { width, height } = layer;
+  const read = (paint) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    paint(context);
+    return context.getImageData(0, 0, width, height).data;
+  };
+  const drawn = read((context) => context.drawImage(layer, 0, 0));
   // The photo as the page fits it, cover and centred or filling its box: the whole photo placed
   // and clipped, since naturalWidth, for a photo chosen through srcset, isn't in its pixels.
-  const cover = getComputedStyle(img).objectFit === 'cover';
-  const zoom = cover ? Math.max(width / img.naturalWidth, height / img.naturalHeight) : 0;
-  const [dw, dh] = cover ? [img.naturalWidth * zoom, img.naturalHeight * zoom] : [width, height];
-  context.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
-  const a = canvas.getContext('2d').getImageData(left, top, width, height).data;
-  const b = context.getImageData(0, 0, width, height).data;
+  const photo = read((context) => {
+    const cover = getComputedStyle(img).objectFit === 'cover';
+    const zoom = cover ? Math.max(width / img.naturalWidth, height / img.naturalHeight) : 0;
+    const [dw, dh] = cover ? [img.naturalWidth * zoom, img.naturalHeight * zoom] : [width, height];
+    context.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+  });
   let sum = 0;
-  for (let i = 0; i < a.length; i += 4) sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
-  return sum / (a.length / 4) / 3;
-}, id);
+  for (let i = 0; i < drawn.length; i += 4) sum += Math.abs(drawn[i] - photo[i]) + Math.abs(drawn[i + 1] - photo[i + 1]) + Math.abs(drawn[i + 2] - photo[i + 2]);
+  return sum / (drawn.length / 4) / 3;
+}, [id, time]);
 
 test('a photo on the screen when the page opens stays as it is, with no WebGL, until the pointer moves over it', async () => {
   const { context, page } = await open('ripple', {}, countWebGL);
@@ -352,20 +359,22 @@ test('a photo on the screen when the page opens stays as it is, with no WebGL, u
   await context.close();
 });
 
-test('the pointer drops ripples that bend the photo, and the photo itself is back when they fade', async () => {
+test('the pointer drops ripples that bend the photo; once they fade, the photo itself is back and the WebGL is let go', async () => {
   const { context, page } = await open('ripple');
   await running(page);
+  const figure = page.locator('#top');
+  const before = await figure.screenshot();
   const box = await page.locator('#top img').boundingBox();
   await page.mouse.move(box.x + 60, box.y + 160);
   await page.mouse.move(box.x + 420, box.y + 160, { steps: 12 });
   await page.waitForTimeout(250);
   assert.equal(await shown(page, 'top'), true);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#top img')).opacity), '0');
-  const bent = await difference(page, 'top');
-  assert.ok(bent > 6, `the photo bends (${bent.toFixed(1)})`);
+  assert.equal((await figure.screenshot()).equals(before), false, 'the photo bends');
   await page.mouse.move(box.x + 700, box.y + 500);
-  await page.waitForFunction(() => !document.querySelector('#top > canvas').classList.contains('is-shown'), null, { timeout: 4000 });
+  await page.waitForFunction(() => !document.querySelector('#top > canvas'), null, { timeout: 4000 });
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#top img')).opacity), '1');
+  assert.equal((await figure.screenshot()).equals(before), true, 'the photo itself is back');
   await context.close();
 });
 
@@ -375,14 +384,38 @@ test('a photo scrolling into view ripples once and settles, its frames the photo
   await page.evaluate(() => document.querySelector('#below').scrollIntoView({ block: 'center' }));
   await page.waitForFunction(() => document.querySelector('#below > canvas')?.classList.contains('is-shown'), null, { timeout: 5000 });
   await page.evaluate(() => window.dcMotion.pause());
-  await page.evaluate(() => window.dcMotion.seek(0.5));
-  const rippling = await difference(page, 'below');
-  await page.evaluate(() => window.dcMotion.seek(1.9)); // its last frames, before it gives way to the photo
-  const settling = await difference(page, 'below');
+  const rippling = await difference(page, 'below', 0.5);
+  const settling = await difference(page, 'below', 1.9); // its last frames, before it gives way to the photo
   assert.ok(rippling > 2, `it ripples (${rippling.toFixed(1)})`);
   assert.ok(settling < 1, `and settles on the photo, cropped and the right way up (${settling.toFixed(1)})`);
   await page.evaluate(() => window.dcMotion.resume());
-  await page.waitForFunction(() => !document.querySelector('#below > canvas').classList.contains('is-shown'), null, { timeout: 5000 });
+  await page.waitForFunction(() => !document.querySelector('#below > canvas'), null, { timeout: 5000 });
+  await context.close();
+});
+
+// Firefox for Android (Pixel 8a, 2026-11-25) swapped two photos rippling at once when both drew in
+// one shared WebGL canvas and copied it to their own: it read that canvas out of step. Chromium here
+// draws in software and never showed it, so the test holds what fixed it: a canvas of its own each.
+test('two photos rippling at once each draw in a WebGL canvas of their own, never a copy of another', async () => {
+  const copies = (context) => context.addInitScript(() => {
+    window.copies = 0;
+    const original = CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage = function (source, ...rest) {
+      if (source instanceof HTMLCanvasElement || source instanceof OffscreenCanvas) window.copies++;
+      return original.call(this, source, ...rest);
+    };
+  });
+  const { context, page } = await open('ripple-two', {}, copies);
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 2);
+  await page.evaluate(() => document.querySelector('.row').scrollIntoView({ block: 'center' }));
+  await page.waitForFunction(() => document.querySelectorAll('figure > canvas.is-shown').length === 2, null, { timeout: 5000 });
+  assert.equal(await page.evaluate(() => window.copies), 0);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('figure > canvas')].map((c) => Boolean(c.getContext('webgl')))), [true, true]);
+  await page.evaluate(() => window.dcMotion.pause());
+  for (const id of ['first', 'second']) {
+    const away = await difference(page, id, 1.9);
+    assert.ok(away < 1, `#${id} shows its own photo (${away.toFixed(1)})`);
+  }
   await context.close();
 });
 

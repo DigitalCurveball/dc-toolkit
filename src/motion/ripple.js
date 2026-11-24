@@ -19,9 +19,11 @@
 //   pointer   1; 0 ignores the cursor, leaving the ripple as a photo scrolls in
 //   enter     true; false leaves a photo still as it scrolls in, so only the cursor ripples it
 //
-// One WebGL context for the page, made when the first photo ripples and shared by every photo:
-// each draws its frame there and copies it to its own canvas, so a gallery costs one context, not
-// one a photo, and nothing until it moves.
+// While a photo ripples it has a WebGL canvas of its own, laid over the photo and drawn directly,
+// and lets it go once the ripple settles: a gallery holds a context only for each photo moving,
+// and none until one does. One context shared by every photo, each copying its frame from it, swapped
+// two photos rippling at once in Firefox for Android, which read the shared canvas out of step
+// (2026-11-25).
 
 import { surface } from './gl.js';
 
@@ -76,26 +78,6 @@ void main() {
 /** How long a ripple of `strength` lasts, in seconds, before it bends the photo less than STILL. */
 const life = (strength) => Math.log((AMPLITUDE * strength) / STILL) / DECAY;
 
-let gpu = null; // the page's one context, once a photo has rippled
-let unavailable = false;
-
-/** The shared context, made the first time it is asked for; null where WebGL is unavailable. */
-function shared() {
-  if (gpu?.restored) gpu = null; // a context that came back is made again, with its program
-  if (gpu || unavailable) return gpu;
-  const canvas = document.createElement('canvas');
-  const s = surface(canvas, FRAGMENT, {
-    lost: () => (gpu.lost = true),
-    restored: () => (gpu.restored = true),
-  });
-  if (!s) {
-    unavailable = true;
-    return null;
-  }
-  gpu = { ...s, canvas, lost: false, restored: false };
-  return gpu;
-}
-
 const scratch = document.createElement('canvas'); // where a photo is drawn at its size, to upload
 
 export default {
@@ -108,12 +90,8 @@ export default {
       return null;
     }
     photo.setAttribute('data-motion-still', '');
-    const canvas = kit.layer('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return null;
     // The ripple and the photo swap at once: the ripple's first and last frames are the photo.
-    canvas.style.transition = photo.style.transition = 'none';
-    canvas.width = canvas.height = 1; // its pixels are kept only while it ripples
+    photo.style.transition = 'none';
 
     const pointer = kit.pointer();
     // Each ripple: where it starts, as a share of the photo's width and height; when, in the
@@ -124,41 +102,35 @@ export default {
     let width = 0;
     let height = 0;
     let ratio = 1;
-    let shown = false;
-    let texture = null; // the photo, in the shared context, while it ripples
+    // While it ripples: its canvas, the WebGL surface on it, and the size the photo was uploaded at.
+    let canvas = null;
+    let gl = null;
+    let uploaded = '';
+    let placed = '';
     const uniform = new Float32Array(DROPS * 4);
 
-    function hide() {
-      if (shown) {
-        canvas.classList.remove('is-shown');
-        canvas.width = canvas.height = 1;
-        shown = false;
-      }
-      if (texture && texture.gpu === gpu && !gpu.lost) gpu.gl.deleteTexture(texture.id);
-      texture = null;
+    /** Lets the canvas and its context go, and the photo shows. */
+    function release() {
+      gl?.destroy();
+      canvas?.remove();
+      canvas = gl = null;
+      uploaded = placed = '';
       return false;
     }
 
-    /** The photo, drawn at `w` by `h` device pixels as the page draws it, into the shared context. */
-    function upload(w, h) {
+    /** The photo, its whole drawn at `[x, y, width, height]` within a `w` by `h` canvas, as the texture. */
+    function upload(w, h, [x, y, pw, ph]) {
       scratch.width = w;
       scratch.height = h;
-      const place = fitted(photo, w, h, ratio);
-      scratch.getContext('2d').drawImage(photo, ...place);
-      const { gl } = gpu;
-      const id = texture?.gpu === gpu ? texture.id : gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, id);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      scratch.getContext('2d').drawImage(photo, x * ratio, y * ratio, pw * ratio, ph * ratio);
+      const context = gl.gl;
+      context.bindTexture(context.TEXTURE_2D, context.createTexture());
+      context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR);
+      context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR);
+      context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE);
+      context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE);
       // Throws for a photo from another origin without CORS.
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scratch);
-      // What the page shows of the photo in its box: all of it, but for a photo fitted with
-      // `contain`, whose margins stay clear.
-      const [x0, y0] = [Math.max(0, place[0]), Math.max(0, place[1])];
-      const [x1, y1] = [Math.min(w, place[0] + place[2]), Math.min(h, place[1] + place[3])];
-      texture = { id, gpu, w, h, shows: [x0, y0, x1 - x0, y1 - y0].map(Math.round) };
+      context.texImage2D(context.TEXTURE_2D, 0, context.RGBA, context.RGBA, context.UNSIGNED_BYTE, scratch);
     }
 
     return {
@@ -166,18 +138,14 @@ export default {
         width = w;
         height = h;
         ratio = Math.min(dpr, 2);
-        if (shown) {
-          canvas.width = Math.round(w * ratio);
-          canvas.height = Math.round(h * ratio);
-        }
       },
       frame(time) {
-        if (!drops.length && !(options.pointer > 0 && pointer.inside)) return hide();
+        if (!drops.length && !(options.pointer > 0 && pointer.inside)) return release();
         const outer = element.getBoundingClientRect();
         const rect = photo.getBoundingClientRect();
         const pw = rect.width;
         const ph = rect.height;
-        if (!pw || !ph || !photo.complete || !photo.naturalWidth) return hide();
+        if (!pw || !ph || !photo.complete || !photo.naturalWidth) return release();
         const left = rect.left - outer.left - element.clientLeft;
         const top = rect.top - outer.top - element.clientTop;
 
@@ -196,67 +164,79 @@ export default {
         // Ripples that are over are let go; one not yet begun (a moment drawn again) is kept.
         for (let i = drops.length - 1; i >= 0; i--) if (time - drops[i].t > life(drops[i].s)) drops.splice(i, 1);
         const live = drops.filter((d) => time > d.t);
-        if (!live.length) return hide();
+        if (!live.length) return release();
 
-        const status = shared()?.status() ?? 'failed';
-        if (status === 'failed') {
-          kit.failed();
-          return false;
-        }
-        if (status !== 'ready' || gpu.lost) return hide();
-
-        const w = Math.round(pw * ratio);
-        const h = Math.round(ph * ratio);
-        if (texture?.gpu !== gpu || texture.w !== w || texture.h !== h) {
-          try {
-            upload(w, h);
-          } catch (error) {
-            console.error('dc-motion: the ripple could not read its photo', error);
+        if (!canvas) {
+          canvas = kit.layer('canvas');
+          canvas.style.transition = 'none';
+          gl = surface(canvas, FRAGMENT, { lost: release });
+          if (!gl) {
+            release();
             kit.failed();
             return false;
           }
         }
-
-        const { gl, uniform: at } = gpu;
-        if (gpu.canvas.width < w || gpu.canvas.height < h) {
-          gpu.canvas.width = Math.max(gpu.canvas.width, w);
-          gpu.canvas.height = Math.max(gpu.canvas.height, h);
+        const status = gl.status();
+        if (status === 'failed') {
+          release();
+          kit.failed();
+          return false;
         }
+        if (status !== 'ready') return false; // the photo shows until the shader is ready
+
+        // The canvas covers what the page shows of the photo: its box, or for a photo fitted with
+        // `contain`, the part of the box the photo fills.
+        const place = fitted(photo, pw, ph);
+        const [sx, sy] = [Math.max(0, place[0]), Math.max(0, place[1])];
+        const sw = Math.min(pw, place[0] + place[2]) - sx;
+        const sh = Math.min(ph, place[1] + place[3]) - sy;
+        const w = Math.max(1, Math.round(sw * ratio));
+        const h = Math.max(1, Math.round(sh * ratio));
+        const where = [left + sx, top + sy, sw, sh].join(' ');
+        if (placed !== where) {
+          const style = canvas.style;
+          [style.inset, style.left, style.top, style.width, style.height] = ['auto', `${left + sx}px`, `${top + sy}px`, `${sw}px`, `${sh}px`];
+          style.borderRadius = getComputedStyle(photo).borderRadius;
+          placed = where;
+        }
+        if (uploaded !== `${w} ${h}`) {
+          canvas.width = w;
+          canvas.height = h;
+          try {
+            upload(w, h, [place[0] - sx, place[1] - sy, place[2], place[3]]);
+          } catch (error) {
+            console.error('dc-motion: the ripple could not read its photo', error);
+            release();
+            kit.failed();
+            return false;
+          }
+          uploaded = `${w} ${h}`;
+        }
+
+        const { gl: context, uniform: at } = gl;
         uniform.fill(0);
-        live.forEach((d, i) => uniform.set([d.x * pw, d.y * ph, time - d.t, d.s], i * 4));
-        gl.bindTexture(gl.TEXTURE_2D, texture.id);
-        gl.uniform2f(at('u_size'), w, h);
-        gl.uniform2f(at('u_box'), pw, ph);
-        gl.uniform4fv(at('u_drops'), uniform);
-        gl.uniform1f(at('u_count'), live.length);
-        gpu.draw(w, h);
-
-        if (!shown) {
-          canvas.width = Math.round(width * ratio);
-          canvas.height = Math.round(height * ratio);
-          canvas.classList.add('is-shown');
-          shown = true;
-        }
-        const [tx, ty, tw, th] = texture.shows;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(gpu.canvas, tx, gpu.canvas.height - h + ty, tw, th, Math.round(left * ratio) + tx, Math.round(top * ratio) + ty, tw, th);
+        live.forEach((d, i) => uniform.set([d.x * pw - sx, d.y * ph - sy, time - d.t, d.s], i * 4));
+        context.uniform2f(at('u_size'), w, h);
+        context.uniform2f(at('u_box'), sw, sh);
+        context.uniform4fv(at('u_drops'), uniform);
+        context.uniform1f(at('u_count'), live.length);
+        gl.draw();
+        canvas.classList.add('is-shown');
       },
-      destroy() {
-        hide();
-      },
+      destroy: release,
     };
   },
 };
 
 /**
- * Where the whole photo goes in a `w` by `h` box of device pixels, as the page fits it: [x, y,
+ * Where the whole photo goes in its `w` by `h` box, in CSS pixels, as the page fits it: [x, y,
  * width, height], overflowing the box for `cover`. The whole photo is placed and the box clips it,
  * rather than a part of it cut out, because for a photo chosen through srcset, as Astro's are,
  * naturalWidth is corrected for density, in CSS pixels, while a cut is made in the photo's own.
  */
-function fitted(photo, w, h, ratio) {
-  const nw = photo.naturalWidth * ratio;
-  const nh = photo.naturalHeight * ratio;
+function fitted(photo, w, h) {
+  const nw = photo.naturalWidth;
+  const nh = photo.naturalHeight;
   const style = getComputedStyle(photo);
   const [px, py] = style.objectPosition.split(' ').map((v) => (v.endsWith('%') ? parseFloat(v) / 100 : 0.5));
   const scale = {
