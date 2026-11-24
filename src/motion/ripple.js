@@ -1,9 +1,11 @@
 // Photos that ripple (dc-pipeline #52): the cursor drops ripples where it moves over a photo, like
 // a finger drawn through water, with a faint glint on each wave, and they fade within about two
 // seconds, leaving the photo exactly as it was. A phone has no cursor: there, a photo ripples once
-// from its centre as it scrolls into view. A photo already on the screen when the page opens
-// stays still until it is hovered, so nothing wobbles at a visitor on arrival and nothing runs
-// while the page loads.
+// from its centre as it scrolls into view, and a tap ripples it where the finger lands. Only a tap
+// counts, a touch that lifts quickly without moving, since every scroll starts with a finger down;
+// and not on a photo inside a link, which the tap opens before the ripple shows. A photo already
+// on the screen when the page opens stays still until it is hovered or tapped, so nothing wobbles
+// at a visitor on arrival and nothing runs while the page loads.
 //
 // Its still is the photo itself, the element's first <img> or the one marked `data-motion-still`,
 // which screen readers keep throughout. The ripple is drawn over it only while it moves, from a
@@ -16,7 +18,8 @@
 //
 // Options (data-motion-options, or the component's props):
 //   strength  how far the ripples bend the photo, 1; 0.5 is half as far
-//   pointer   1; 0 ignores the cursor, leaving the ripple as a photo scrolls in
+//   pointer   the strength of a cursor's or a tap's ripples, 1; 0 ignores both, leaving the ripple
+//             as a photo scrolls in
 //   enter     true; false leaves a photo still as it scrolls in, so only the cursor ripples it
 //
 // While a photo ripples it has a WebGL canvas of its own, laid over the photo and drawn directly,
@@ -30,6 +33,7 @@ import { surface } from './gl.js';
 const DROPS = 8; // ripples drawn at once; the oldest is given up first
 const SPACING = 28; // how far the cursor moves between one drop and the next, in CSS pixels
 const ENTER = 1.3; // the strength of the ripple as a photo scrolls in, beside a cursor's 1
+const TAP = [10, 400]; // a touch that moves no further, in CSS pixels, and lifts within this, in milliseconds, is a tap
 const SPEED = 240; // how fast a ring spreads, in CSS pixels a second
 const WAVELENGTH = 30; // from one crest to the next, in CSS pixels
 const WIDTH = 46; // how wide a ring's band of waves is, in CSS pixels
@@ -99,6 +103,27 @@ export default {
     const drops = [];
     if (options.enter && !kit.opening) drops.push({ x: 0.5, y: 0.5, t: 0, s: ENTER * options.strength });
     let trail = null; // where the cursor last dropped one
+    // Taps, as a share of the photo's width and height, waiting for the next frame to drop them.
+    const taps = [];
+    let touch = null; // a finger down on the photo that may yet be a tap
+    const tapping = options.pointer > 0 && !photo.closest('a');
+    const down = (event) => {
+      if (event.pointerType === 'touch' && event.isPrimary) touch = { id: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now() };
+    };
+    const move = (event) => {
+      if (touch?.id === event.pointerId && Math.hypot(event.clientX - touch.x, event.clientY - touch.y) > TAP[0]) touch = null;
+    };
+    const up = (event) => {
+      if (touch?.id !== event.pointerId) return;
+      const box = photo.getBoundingClientRect();
+      if (performance.now() - touch.at <= TAP[1] && box.width && box.height) {
+        taps.push({ x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height, at: performance.now() });
+      }
+      touch = null;
+    };
+    const cancel = () => (touch = null); // the browser took it for a scroll
+    const listeners = { pointerdown: down, pointermove: move, pointerup: up, pointercancel: cancel };
+    if (tapping) for (const [type, listener] of Object.entries(listeners)) element.addEventListener(type, listener, { passive: true });
     let width = 0;
     let height = 0;
     let ratio = 1;
@@ -140,7 +165,7 @@ export default {
         ratio = Math.min(dpr, 2);
       },
       frame(time) {
-        if (!drops.length && !(options.pointer > 0 && pointer.inside)) return release();
+        if (!drops.length && !taps.length && !(options.pointer > 0 && pointer.inside)) return release();
         const outer = element.getBoundingClientRect();
         const rect = photo.getBoundingClientRect();
         const pw = rect.width;
@@ -161,6 +186,11 @@ export default {
         } else {
           trail = null;
         }
+        // A tap drops one where the finger landed; one left waiting while the effect was paused is let go.
+        for (const tap of taps.splice(0)) {
+          if (performance.now() - tap.at < 500) drops.push({ x: tap.x, y: tap.y, t: time, s: options.pointer * options.strength });
+        }
+        if (drops.length > DROPS) drops.splice(0, drops.length - DROPS);
         // Ripples that are over are let go; one not yet begun (a moment drawn again) is kept.
         for (let i = drops.length - 1; i >= 0; i--) if (time - drops[i].t > life(drops[i].s)) drops.splice(i, 1);
         const live = drops.filter((d) => time > d.t);
@@ -223,7 +253,10 @@ export default {
         gl.draw();
         canvas.classList.add('is-shown');
       },
-      destroy: release,
+      destroy() {
+        for (const [type, listener] of Object.entries(listeners)) element.removeEventListener(type, listener);
+        release();
+      },
     };
   },
 };

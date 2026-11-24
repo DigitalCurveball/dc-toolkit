@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A photo inside a link</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  figure { margin: 0 0 0 40px; }
+  img { display: block; width: 480px; height: 320px; }
+</style>
+</head>
+<body>
+<a href="#card"><figure class="dc-motion" id="card" data-motion="ripple"><img src="ripple-photo.svg" alt="Stripes, a red circle and a green band" width="600" height="400"></figure></a>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ ripple: () => import('/src/motion/ripple.js') });
+</script>
+</body>
+</html>

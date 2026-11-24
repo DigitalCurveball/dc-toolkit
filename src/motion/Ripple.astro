@@ -14,9 +14,9 @@ import './motion.css';
 interface Props {
   /** How far the ripples bend the photo, 1 by default; 0.5 is half as far. */
   strength?: number;
-  /** 1 by default; 0 ignores the cursor, leaving the ripple as the photo scrolls in. */
+  /** The strength of a cursor's or a tap's ripples, 1 by default; 0 ignores both, leaving the ripple as the photo scrolls in. */
   pointer?: number;
-  /** Whether the photo ripples once as it scrolls into view, true by default. */
+  /** Whether the photo ripples once as it scrolls into view, true by default. A tap on a phone ripples it where the finger lands, except on a photo inside a link, which the tap opens. */
   enter?: boolean;
   /** The editor's on/off for the effect: off shows the photo itself. */
   enabled?: boolean;

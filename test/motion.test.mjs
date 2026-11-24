@@ -419,6 +419,45 @@ test('two photos rippling at once each draw in a WebGL canvas of their own, neve
   await context.close();
 });
 
+test('on a touch screen, a tap ripples a photo where the finger lands', async () => {
+  const { context, page } = await open('ripple', { hasTouch: true });
+  await running(page);
+  const box = await page.locator('#top img').boundingBox();
+  await page.touchscreen.tap(box.x + 120, box.y + 100);
+  await page.waitForFunction(() => document.querySelector('#top > canvas')?.classList.contains('is-shown'), null, { timeout: 3000 });
+  await page.waitForFunction(() => !document.querySelector('#top > canvas'), null, { timeout: 5000 });
+  await context.close();
+});
+
+test('a touch that moves, or becomes a scroll, does not ripple a photo', async () => {
+  const { context, page } = await open('ripple', { hasTouch: true });
+  await running(page);
+  // As a phone sends them: a finger down that drags away, and one the browser takes for a scroll.
+  await page.evaluate(() => {
+    const img = document.querySelector('#top img');
+    const box = img.getBoundingClientRect();
+    const at = (type, x, id) => img.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: true, bubbles: true, clientX: box.left + x, clientY: box.top + 100 }));
+    at('pointerdown', 100, 1);
+    at('pointermove', 140, 1);
+    at('pointerup', 140, 1);
+    at('pointerdown', 200, 2);
+    at('pointercancel', 200, 2);
+  });
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator('#top > canvas').count(), 0);
+  await context.close();
+});
+
+test('a tap on a photo inside a link does not ripple it: the link opens', async () => {
+  const { context, page } = await open('ripple-link', { hasTouch: true });
+  await running(page);
+  const box = await page.locator('#card img').boundingBox();
+  await page.touchscreen.tap(box.x + 120, box.y + 100);
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator('#card > canvas').count(), 0);
+  await context.close();
+});
+
 test('without WebGL a photo stays as it is under the pointer', async () => {
   const noWebGL = (context) => context.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
