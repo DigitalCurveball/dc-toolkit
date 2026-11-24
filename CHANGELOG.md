@@ -2,7 +2,7 @@
 
 ## Unreleased, on the `motion` branch
 
-- **Motion effects** (`dc-toolkit/motion`, README "Motion"; dc-pipeline issue #48): a runtime every effect shares (the still first, nothing until the page has loaded, reduced motion as the still, one pause control for the page, nothing drawn off-screen, a lost WebGL context handled, an effect that plays once held at its first moment until it is seen), `MotionToggle.astro`, and the first effects: `Gradient.astro`, a moving background in the brand's colours (#50), and `ParticleLogo.astro`, the logo formed from particles (#51).
+- **Motion effects** (`dc-toolkit/motion`, README "Motion"; dc-pipeline issue #48): a runtime every effect shares (the still first, nothing until the page has loaded, reduced motion as the still, one pause control for the page, nothing drawn off-screen, a lost WebGL context handled, an effect that plays once held at its first moment until it is seen), `MotionToggle.astro`, and the first effects: `Gradient.astro`, a moving background in the brand's colours (#50), `ParticleLogo.astro`, the logo formed from particles (#51), and `Ripple.astro`, photos that ripple under the cursor (#52).
 - **`dc-qa` checks motion** on a page that has it: a still without scripts and under reduced motion, each effect starting, the pause control pausing and resuming, and the text over each effect measured against its still and eight moments of its movement (`src/motion-checks.mjs`).
 
 ## 0.11.0 (2026-10-25)

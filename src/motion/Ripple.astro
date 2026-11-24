@@ -1,0 +1,44 @@
+---
+// Photos that ripple (ripple.js), around the photo they ripple:
+//
+//   <Ripple class="card-photo" enabled={gallery.motion}><Image src={photo.src} alt={photo.alt} /></Ripple>
+//
+// The photo inside, an <img> or Astro's <Image>, is the still: it shows without scripts, under
+// reduced motion and whenever nothing moves, and screen readers keep it throughout. It must be
+// from the site itself, as Astro's images are. It needs no MotionToggle of its own. `enabled` is
+// the editor's on/off: off, the photo stays as it is and nothing runs. Any other attribute goes on
+// the element.
+
+import './motion.css';
+
+interface Props {
+  /** How far the ripples bend the photo, 1 by default; 0.5 is half as far. */
+  strength?: number;
+  /** 1 by default; 0 ignores the cursor, leaving the ripple as the photo scrolls in. */
+  pointer?: number;
+  /** Whether the photo ripples once as it scrolls into view, true by default. */
+  enter?: boolean;
+  /** The editor's on/off for the effect: off shows the photo itself. */
+  enabled?: boolean;
+  /** The element to render, `div` by default. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { strength, pointer, enter, enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+const options = JSON.stringify({ strength, pointer, enter });
+---
+
+<Element
+  {...attributes}
+  class:list={['dc-motion', className]}
+  data-motion={enabled ? 'ripple' : undefined}
+  data-motion-options={enabled ? options : undefined}
+><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ ripple: () => import('./ripple.js') });
+</script>

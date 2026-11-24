@@ -16,7 +16,8 @@ void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
 /**
  * A shader surface on `canvas`, or null where WebGL is unavailable. `status()` is 'compiling',
  * 'ready' or 'failed'; once ready, `uniform(name)` is a uniform's location and `draw()` draws the
- * whole canvas.
+ * whole canvas, or `draw(width, height)` its bottom left corner, for a context several pictures
+ * share.
  */
 export function surface(canvas, fragment, { lost, restored } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' });
@@ -74,8 +75,8 @@ export function surface(canvas, fragment, { lost, restored } = {}) {
       if (!locations.has(name)) locations.set(name, gl.getUniformLocation(program, name));
       return locations.get(name);
     },
-    draw() {
-      gl.viewport(0, 0, canvas.width, canvas.height);
+    draw(width = canvas.width, height = canvas.height) {
+      gl.viewport(0, 0, width, height);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
     destroy() {

@@ -54,6 +54,7 @@ const bound = new WeakSet();
 let paused = readPaused();
 let hidden = document.hidden;
 let begun = false;
+let opened = false; // the effects on the page when it opened have been found
 let observer = null;
 let watcher = null;
 let resizer = null;
@@ -98,18 +99,24 @@ function begin() {
     for (const record of records.values()) if (record.pointer) record.pointer.inside = false;
   });
   scan();
+  opened = true;
 }
 
 function scan() {
   bindToggles();
   for (const el of document.querySelectorAll('[data-motion]')) {
     if (records.has(el) || !effects.has(el.dataset.motion)) continue;
-    const record = { el, name: el.dataset.motion, state: 'still', reason: null, visible: false, inst: null, layer: null, loops: false, time: 0, drawn: false, lost: false, loading: false, pointer: null, seen: false };
+    const record = { el, name: el.dataset.motion, state: 'still', reason: null, visible: false, inst: null, layer: null, loops: false, time: 0, drawn: false, lost: false, loading: false, pointer: null, seen: false, opening: !opened && onScreen(el) };
     records.set(el, record);
     setState(record, 'still');
     if (!reduce.matches) observer.observe(el);
   }
   update();
+}
+
+function onScreen(el) {
+  const box = el.getBoundingClientRect();
+  return box.bottom > 0 && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
 }
 
 function onIntersect(entries) {
@@ -180,6 +187,8 @@ function kit(record) {
   }
   return {
     options,
+    /** Whether the element was on the screen when the page opened (when the effects began), not scrolled to since. */
+    opening: record.opening,
     /** A layer over the still and behind the content, hidden from assistive technology. */
     layer(tag = 'canvas') {
       const layer = document.createElement(tag);
