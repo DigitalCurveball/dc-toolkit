@@ -68,6 +68,9 @@ export async function checkMotion(browser, target) {
 
 async function withPage(browser, target, options, work) {
   const context = await browser.newContext({ viewport: VIEWPORT, ...options });
+  // The browser draws WebGL in software here, where the effects would show their stills
+  // (src/motion/gl.js): the checks need their frames, to measure the text over them.
+  await context.addInitScript(() => (window.dcMotionSoftware = true));
   const page = await context.newPage();
   try {
     await page.goto(target, { waitUntil: 'load' });

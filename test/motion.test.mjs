@@ -8,7 +8,8 @@ import { checkMotion } from '../src/motion-checks.mjs';
 
 // The runtime and the gradient run in a real browser, from the pages in fixtures/motion/, served
 // from the package's root as a concept would serve them: no build. Headless Chromium draws WebGL in
-// software, as CI's does.
+// software, as CI's does, where the WebGL effects show their stills; so these tests, like dc-qa's
+// checks, ask them to draw anyway (window.dcMotionSoftware), but for the test of exactly that.
 
 let server;
 let browser;
@@ -24,8 +25,9 @@ after(async () => {
 const fixture = (name) => `${server.origin}/test/fixtures/motion/${name}.html`;
 const states = (page) => page.evaluate(() => window.dcMotion.instances().map((i) => i.state));
 
-async function open(name, options = {}, prepare) {
+async function open(name, options = {}, prepare, { software = true } = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...options });
+  if (software) await context.addInitScript(() => (window.dcMotionSoftware = true));
   if (prepare) await prepare(context);
   const page = await context.newPage();
   const requests = [];
@@ -97,6 +99,24 @@ test('without WebGL the effect gives up and the still stays', async () => {
   await page.waitForFunction(() => window.dcMotion?.instances()[0]?.state === 'failed', null, { timeout: 10000 });
   assert.equal(await page.evaluate(() => window.dcMotion.instances()[0].reason), 'unsupported');
   assert.equal(await page.locator('.dc-motion-layer').count(), 0);
+  await context.close();
+});
+
+test('where WebGL is drawn in software, with no graphics chip, the effect shows its still and compiles nothing', async () => {
+  const compiles = (context) => context.addInitScript(() => {
+    window.compiled = 0;
+    const original = WebGLRenderingContext.prototype.compileShader;
+    WebGLRenderingContext.prototype.compileShader = function (...args) {
+      window.compiled++;
+      return original.apply(this, args);
+    };
+  });
+  const { context, page } = await open('pass', {}, compiles, { software: false });
+  await page.waitForFunction(() => window.dcMotion?.instances()[0]?.state === 'failed', null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => window.dcMotion.instances()[0].reason), 'unsupported');
+  assert.equal(await page.locator('.dc-motion-layer').count(), 0);
+  assert.equal(await page.evaluate(() => window.compiled), 0);
+  assert.equal(await page.locator('.dc-motion-toggle').isVisible(), false);
   await context.close();
 });
 

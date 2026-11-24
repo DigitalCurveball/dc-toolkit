@@ -14,8 +14,8 @@
 //
 // It draws at half the element's CSS pixels and 30 frames a second: a soft, slow gradient looks
 // the same scaled up and at that rate, for an eighth of the work at full size and 60, which is
-// what decides it on a phone's battery and in a lab test's throttled CPU (CI's Lighthouse drew
-// it in software at 560 ms of blocking time at full size and 60, 2026-11-24).
+// what decides it on a phone's battery. Where WebGL is drawn in software, as in every lab test,
+// it doesn't run at all (gl.js).
 
 import { rgb, surface } from './gl.js';
 

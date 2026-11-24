@@ -4,9 +4,19 @@
 // the still shows meanwhile.
 //
 // The shader compiles in the background where the browser can (KHR_parallel_shader_compile, in
-// Chromium): asking whether a shader compiled blocks the page until it has, which on a phone, or
-// a machine drawing WebGL in software, is a long task in the middle of loading. `status()` says
-// 'compiling' until it is done, and the effect draws nothing till then.
+// Chromium): asking whether a shader compiled blocks the page until it has, which on a phone is a
+// long task in the middle of loading. `status()` says 'compiling' until it is done, and the effect
+// draws nothing till then.
+//
+// **Only on a graphics chip.** Where the browser draws WebGL in software (SwiftShader, llvmpipe: a
+// machine with no working GPU, and every lab test, CI's Lighthouse and PageSpeed Insights among
+// them), there is no surface and the effect shows its still, as without WebGL. Starting there costs
+// a long task however few pixels are drawn: no background compile, and a first draw that compiles
+// the pipeline (locally 7 and 22 ms after a 6 ms context; in CI, a 150 ms task, dc-pipeline #61).
+// The renderer is asked straight after the context is made, before anything compiles. The
+// browsers' own switch, `failIfMajorPerformanceCaveat`, gave headless Chromium and Firefox a
+// context all the same (2026-11-25). The checks, which must see an effect's frames to measure the
+// text over them, ask for it anyway: `window.dcMotionSoftware = true` before the page's scripts.
 
 const VERTEX = `
 attribute vec2 a_position;
@@ -21,6 +31,10 @@ void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
 export function surface(canvas, fragment, { lost, restored } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' });
   if (!gl) return null;
+  if (software(gl) && !globalThis.dcMotionSoftware) {
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return null;
+  }
   const parallel = gl.getExtension('KHR_parallel_shader_compile');
   const program = gl.createProgram();
   const shaders = [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, fragment]].map(([type, source]) => {
@@ -83,6 +97,13 @@ export function surface(canvas, fragment, { lost, restored } = {}) {
       gl.getExtension('WEBGL_lose_context')?.loseContext(); // frees the GPU's memory now, not at collection
     },
   };
+}
+
+/** Whether the browser draws this context's WebGL in software, by the renderer it names. */
+function software(gl) {
+  const info = gl.getExtension('WEBGL_debug_renderer_info');
+  const renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+  return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(renderer);
 }
 
 /** A colour as CSS writes it in hex (#rgb or #rrggbb) as three numbers from 0 to 1, or null. */
