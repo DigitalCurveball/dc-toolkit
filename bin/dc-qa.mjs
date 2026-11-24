@@ -31,6 +31,11 @@
 //              placeholders are counted, not failed: they are expected until
 //              launch, and the launch checklist is where they become a problem.
 //   headings   exactly one h1, and no skipped levels.
+//   motion     on a page with a motion effect (src/motion/): a still without scripts
+//              and under reduced motion, each effect starting, a pause control that
+//              pauses and resumes them (WCAG 2.2.2), and the text over each effect
+//              measured against its darkest and lightest moments, which axe can't see
+//              into a canvas to do (src/motion-checks.mjs).
 //   meta       title, description, canonical and Open Graph present.
 //
 // Exits non-zero when anything fails. That is deliberately loud in GitHub Actions
@@ -44,6 +49,7 @@ import { AxeBuilder } from '@axe-core/playwright';
 import { findCoveredText } from '../src/covered-text.mjs';
 import { linkChecker } from '../src/link-status.mjs';
 import { checkMenuButtons } from '../src/menu-buttons.mjs';
+import { checkMotion, hasMotion } from '../src/motion-checks.mjs';
 import { serve } from '../src/serve.mjs';
 
 const WIDTHS = [320, 400, 768, 1280];
@@ -183,6 +189,23 @@ async function checkDocument(page, path, result) {
   }
 }
 
+/** The motion checks' results, as lines and failures. */
+function reportMotion(path, motion, result) {
+  result.motion = motion;
+  for (const problem of motion.problems) {
+    failures.push(`${path}: ${problem}`);
+    lines.push(`- ❌ motion: ${problem}`);
+  }
+  for (const note of motion.notes) lines.push(`- ⚠️ motion: ${note}`);
+  if (motion.problems.length) return;
+  const count = motion.effects.length;
+  lines.push(`- ✅ motion: ${count} effect${count === 1 ? '' : 's'}, a still without scripts and under reduced motion, the pause control pauses and resumes`);
+  if (motion.contrast.length) {
+    const lowest = motion.contrast.reduce((a, b) => (a.ratio / a.needs <= b.ratio / b.needs ? a : b));
+    lines.push(`- ✅ text over motion: ${motion.contrast.length} element(s) at every moment, the closest "${lowest.text}" at ${lowest.ratio.toFixed(2)}:1 (needs ${lowest.needs}:1)`);
+  }
+}
+
 for (const path of paths) {
   const target = new URL(path, origin).href;
   lines.push(`\n### ${path}\n`);
@@ -193,7 +216,9 @@ for (const path of paths) {
   const docPage = await docContext.newPage();
   await docPage.goto(target, { waitUntil: 'networkidle' });
   await checkDocument(docPage, path, result);
+  const motion = (await hasMotion(docPage)) ? await checkMotion(browser, target) : null;
   await docContext.close();
+  if (motion) reportMotion(path, motion, result);
 
   for (const width of WIDTHS) {
     // A context per width, not browser.newPage(): axe refuses to run on a page
