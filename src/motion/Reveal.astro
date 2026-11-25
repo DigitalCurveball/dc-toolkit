@@ -2,38 +2,80 @@
 // Photos that open as they arrive (reveal.js), around the photo they open:
 //
 //   <Reveal class="gallery-photo" from="left" enabled={gallery.motion}><Image src={photo.src} alt={photo.alt} /></Reveal>
+//   <Reveal from="dither" paper="#F6F6F4"><Image src={photo.src} alt={photo.alt} /></Reveal>
 //
 // The photo inside, an <img> or Astro's <Image>, is the still: it shows without scripts, under
-// reduced motion, wherever it was on the screen when the page opened, and once it has opened, with
-// nothing of the effect left on it. A corner radius goes on this element, which the opening window
-// keeps. It needs no MotionToggle. `enabled` is the editor's on/off: off, the photo stays as it is
-// and nothing runs. Any other attribute goes on the element.
+// reduced motion, wherever it was on the screen when the page opened, and once it has arrived,
+// with nothing of the effect left on it. A corner radius goes on this element, which the opening
+// window keeps. It needs no MotionToggle. `enabled` is the editor's on/off: off, the photo stays
+// as it is and nothing runs. Any other attribute goes on the element.
+//
+// `dither` forms the photo from its own pixels (reveal.css), and afterwards a tap or the cursor
+// dissolves a circle of it for a moment. It draws from a copy of the photo, so the slot is rendered
+// twice, the copy hidden from screen readers and filling the element as `object-fit: cover` does:
+// the photo must fill the element too. Its `paper` is the ground behind the photo, what isn't
+// printed yet. The markup it writes, the same in a concept, which links motion/reveal.css:
+//
+//   <div class="dc-motion dc-reveal dc-reveal--dither" data-motion="reveal" data-motion-options='{"from":"dither"}' style="--dc-reveal-paper: #F6F6F4">
+//     <img …>
+//     <span class="dc-reveal-dither" aria-hidden="true">
+//       <span class="dc-reveal-tone"><img …><span class="dc-reveal-white"></span><span class="dc-reveal-black"></span><span class="dc-reveal-screen"></span></span>
+//       <span class="dc-reveal-paper"></span>
+//     </span>
+//   </div>
 
 import './motion.css';
+import './reveal.css';
 
 interface Props {
-  /** Where it opens from: 'centre', a window growing to its edges (the default), or a wipe from 'left', 'right' or 'top'. */
-  from?: 'centre' | 'left' | 'right' | 'top';
-  /** How much larger the photo is as it begins to open, settling to its true size: 0.15 by default, 0 for none. */
+  /** How it arrives: 'centre', a window growing to its edges (the default); a wipe from 'left', 'right' or 'top'; or 'dither', formed from its own pixels. */
+  from?: 'centre' | 'left' | 'right' | 'top' | 'dither';
+  /** How much larger the photo is as it begins to open, settling to its true size: 0.15 by default, 0 for none. Not for `dither`. */
   zoom?: number;
+  /** For `dither`: the ground behind the photo, what isn't printed yet; white by default. */
+  paper?: string;
+  /** For `dither`: the size of its pixels, in CSS pixels; 3 by default. */
+  pixel?: number;
+  /** For `dither`: the photo's object-position, if it isn't centred. */
+  position?: string;
   /** The editor's on/off for the effect: off shows the photo itself. */
   enabled?: boolean;
   /** The element to render, `div` by default. */
   as?: string;
   class?: string;
+  style?: string;
   [attribute: string]: unknown;
 }
 
-const { from, zoom, enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+const { from, zoom, paper, pixel, position, enabled = true, as: Element = 'div', class: className, style, ...attributes } = Astro.props;
 const options = JSON.stringify({ from, zoom });
+const dithered = enabled && from === 'dither';
+const content = dithered ? await Astro.slots.render('default') : '';
+const custom = [
+  dithered && paper && `--dc-reveal-paper: ${paper}`,
+  dithered && pixel !== undefined && `--dc-reveal-pixel: ${pixel}px`,
+  dithered && position && `--dc-reveal-position: ${position}`,
+  style,
+].filter(Boolean).join('; ');
 ---
 
 <Element
   {...attributes}
-  class:list={['dc-motion', className]}
+  class:list={['dc-motion', 'dc-reveal', dithered && 'dc-reveal--dither', className]}
+  style={custom || undefined}
   data-motion={enabled ? 'reveal' : undefined}
   data-motion-options={enabled ? options : undefined}
-><slot /></Element>
+>
+  {dithered ? (
+    <>
+      <Fragment set:html={content} />
+      <span class="dc-reveal-dither" aria-hidden="true">
+        <span class="dc-reveal-tone"><Fragment set:html={content} /><span class="dc-reveal-white"></span><span class="dc-reveal-black"></span><span class="dc-reveal-screen"></span></span>
+        <span class="dc-reveal-paper"></span>
+      </span>
+    </>
+  ) : <slot />}
+</Element>
 
 <script>
   import { register } from './runtime.js';

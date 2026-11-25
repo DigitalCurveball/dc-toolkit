@@ -1,0 +1,32 @@
+/* The dither way into a Reveal (reveal.js, `from="dither"`, dc-pipeline #56): the photo forming
+   from its own pixels in full colour, in the order of an ordered dither.
+
+   A grey copy of the photo is pushed toward white (--dc-reveal-white) or black (--dc-reveal-black),
+   averaged with a 4 by 4 Bayer tile, and thresholded by an extreme contrast, so every pixel is black
+   or white. Multiplied by the paper colour, that is laid over the photo with `lighten`: where it is
+   black the photo shows, where it is the paper, the paper. All white, the photo is blank paper; as
+   the white goes its darks print first, and as the black comes, its lights, until it is the photo
+   itself. The layer shows only while reveal.js says (.is-dithering), and only in a soft circle
+   where a tap or the cursor dissolves the formed photo (.is-lens), so the still is the photo.
+
+   On .dc-reveal-dither's element a site may set --dc-reveal-pixel, the dither's pixel (3px);
+   --dc-reveal-paper, what isn't printed yet, the ground behind the photo (white); and
+   --dc-reveal-position, the photo's object-position, if it isn't centred. The component writes
+   them from its props. */
+
+:where(.dc-reveal--dither) { --dc-reveal-pixel: 3px; --dc-reveal-paper: #fff; overflow: hidden; }
+.dc-reveal-dither { display: none; position: absolute; inset: 0; z-index: 1; isolation: isolate; mix-blend-mode: lighten; pointer-events: none; }
+.dc-reveal.is-dithering > .dc-reveal-dither { display: block; }
+.dc-reveal-tone { position: absolute; inset: 0; overflow: hidden; filter: contrast(60); }
+.dc-reveal-tone img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; object-position: var(--dc-reveal-position, 50% 50%); filter: grayscale(1) brightness(1.1); }
+.dc-reveal-white, .dc-reveal-black, .dc-reveal-screen, .dc-reveal-paper { position: absolute; inset: 0; }
+.dc-reveal-white { background: #fff; opacity: var(--dc-reveal-white, 1); }
+.dc-reveal-black { background: #000; opacity: var(--dc-reveal-black, 0); }
+.dc-reveal-screen { opacity: 0.5; background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='4'%20height='4'%20shape-rendering='crispEdges'%3E%3Crect%20x='0'%20y='0'%20width='1'%20height='1'%20fill='rgb(247,247,247)'/%3E%3Crect%20x='1'%20y='0'%20width='1'%20height='1'%20fill='rgb(120,120,120)'/%3E%3Crect%20x='2'%20y='0'%20width='1'%20height='1'%20fill='rgb(215,215,215)'/%3E%3Crect%20x='3'%20y='0'%20width='1'%20height='1'%20fill='rgb(88,88,88)'/%3E%3Crect%20x='0'%20y='1'%20width='1'%20height='1'%20fill='rgb(56,56,56)'/%3E%3Crect%20x='1'%20y='1'%20width='1'%20height='1'%20fill='rgb(183,183,183)'/%3E%3Crect%20x='2'%20y='1'%20width='1'%20height='1'%20fill='rgb(24,24,24)'/%3E%3Crect%20x='3'%20y='1'%20width='1'%20height='1'%20fill='rgb(151,151,151)'/%3E%3Crect%20x='0'%20y='2'%20width='1'%20height='1'%20fill='rgb(199,199,199)'/%3E%3Crect%20x='1'%20y='2'%20width='1'%20height='1'%20fill='rgb(72,72,72)'/%3E%3Crect%20x='2'%20y='2'%20width='1'%20height='1'%20fill='rgb(231,231,231)'/%3E%3Crect%20x='3'%20y='2'%20width='1'%20height='1'%20fill='rgb(104,104,104)'/%3E%3Crect%20x='0'%20y='3'%20width='1'%20height='1'%20fill='rgb(8,8,8)'/%3E%3Crect%20x='1'%20y='3'%20width='1'%20height='1'%20fill='rgb(135,135,135)'/%3E%3Crect%20x='2'%20y='3'%20width='1'%20height='1'%20fill='rgb(40,40,40)'/%3E%3Crect%20x='3'%20y='3'%20width='1'%20height='1'%20fill='rgb(167,167,167)'/%3E%3C/svg%3E") 0 0 / calc(var(--dc-reveal-pixel) * 4) calc(var(--dc-reveal-pixel) * 4); image-rendering: pixelated; }
+.dc-reveal-paper { background: var(--dc-reveal-paper); mix-blend-mode: multiply; }
+.dc-reveal.is-lens > .dc-reveal-dither {
+  -webkit-mask-image: radial-gradient(circle at var(--dc-reveal-x) var(--dc-reveal-y), #000 55px, transparent 110px);
+  mask-image: radial-gradient(circle at var(--dc-reveal-x) var(--dc-reveal-y), #000 55px, transparent 110px);
+}
+
+@media (forced-colors: active) { .dc-reveal-dither { display: none !important; } }
