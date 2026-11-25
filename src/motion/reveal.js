@@ -16,7 +16,8 @@
 // It moves only as the visitor scrolls: no pause control (`loops: false`), and the pause control
 // leaves it be (`pausable: false`). It draws nothing, so it runs wherever scripts do.
 
-const LAG = 0.18; // seconds: how far behind the scrolling the opening trails, roughly
+import { arrival, trail } from './scroll.js';
+
 const ROUND = 24; // CSS pixels of corner added to the window from the centre, at its smallest
 const SHAPES = {
   // Each the clip-path's inset, top right bottom left, from how far closed it is (1 closed, 0 open).
@@ -77,15 +78,9 @@ export default {
         const now = performance.now();
         const delta = last ? Math.min((now - last) / 1000, 0.1) : 0;
         last = now;
-        if (loaded) {
-          const { top, height } = element.getBoundingClientRect();
-          // Open once its middle reaches the screen's, or as far as the page can scroll, if not so far.
-          const foot = top - (document.documentElement.scrollHeight - innerHeight - scrollY);
-          const end = Math.max(innerHeight / 2 - height / 2, foot);
-          way = Math.max(way, innerHeight - end > 1 ? clamp((innerHeight - top) / (innerHeight - end)) : 1);
-        }
+        if (loaded) way = Math.max(way, arrival(element));
         if (open === way) return false;
-        open = way - open < 0.001 ? way : open + (way - open) * (1 - Math.exp(-delta / LAG));
+        open = trail(open, way, delta);
         if ((1 - open) ** 3 < 0.001) return finish(); // what is left of it can't be seen
         apply();
       },
@@ -93,5 +88,3 @@ export default {
     };
   },
 };
-
-const clamp = (n) => Math.min(Math.max(Number.isFinite(n) ? n : 0, 0), 1);

@@ -29,11 +29,11 @@
 // (2026-11-25).
 
 import { surface } from './gl.js';
+import { taps as tapped } from './tap.js';
 
 const DROPS = 8; // ripples drawn at once; the oldest is given up first
 const SPACING = 28; // how far the cursor moves between one drop and the next, in CSS pixels
 const ENTER = 1.3; // the strength of the ripple as a photo scrolls in, beside a cursor's 1
-const TAP = [10, 400]; // a touch that moves no further, in CSS pixels, and lifts within this, in milliseconds, is a tap
 const SPEED = 240; // how fast a ring spreads, in CSS pixels a second
 const WAVELENGTH = 30; // from one crest to the next, in CSS pixels
 const WIDTH = 46; // how wide a ring's band of waves is, in CSS pixels
@@ -103,27 +103,14 @@ export default {
     const drops = [];
     if (options.enter && !kit.opening) drops.push({ x: 0.5, y: 0.5, t: 0, s: ENTER * options.strength });
     let trail = null; // where the cursor last dropped one
-    // Taps, as a share of the photo's width and height, waiting for the next frame to drop them.
+    // Taps (tap.js), as a share of the photo's width and height, waiting for the next frame to drop them.
     const taps = [];
-    let touch = null; // a finger down on the photo that may yet be a tap
-    const tapping = options.pointer > 0 && !photo.closest('a');
-    const down = (event) => {
-      if (event.pointerType === 'touch' && event.isPrimary) touch = { id: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now() };
-    };
-    const move = (event) => {
-      if (touch?.id === event.pointerId && Math.hypot(event.clientX - touch.x, event.clientY - touch.y) > TAP[0]) touch = null;
-    };
-    const up = (event) => {
-      if (touch?.id !== event.pointerId) return;
-      const box = photo.getBoundingClientRect();
-      if (performance.now() - touch.at <= TAP[1] && box.width && box.height) {
-        taps.push({ x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height, at: performance.now() });
-      }
-      touch = null;
-    };
-    const cancel = () => (touch = null); // the browser took it for a scroll
-    const listeners = { pointerdown: down, pointermove: move, pointerup: up, pointercancel: cancel };
-    if (tapping) for (const [type, listener] of Object.entries(listeners)) element.addEventListener(type, listener, { passive: true });
+    const untap = options.pointer > 0 && !photo.closest('a')
+      ? tapped(element, (event) => {
+        const box = photo.getBoundingClientRect();
+        if (box.width && box.height) taps.push({ x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height, at: performance.now() });
+      })
+      : () => {};
     let width = 0;
     let height = 0;
     let ratio = 1;
@@ -254,7 +241,7 @@ export default {
         canvas.classList.add('is-shown');
       },
       destroy() {
-        for (const [type, listener] of Object.entries(listeners)) element.removeEventListener(type, listener);
+        untap();
         release();
       },
     };
