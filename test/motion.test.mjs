@@ -645,70 +645,12 @@ test('dc-qa passes the scroll story, which needs no pause control', async () => 
   assert.deepEqual(result.effects.map((e) => e.loops), [false]);
 });
 
-// Kinetic type (reveal.js, scramble.js, band.js), from fixtures/motion/kinetic.html: a heading on
-// the first screen (#early); further down, a label (#label) and a heading with an <em> in it
-// (#heading); then a band (#band), with the page's pause control.
+// Kinetic type (scramble.js, band.js), from fixtures/motion/kinetic.html: a label (#label) a screen
+// down, then a band (#band), with the page's pause control.
 
 const toward = (page, id) => page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
-const kinetic = (page) => page.waitForFunction(() => window.dcMotion?.instances().length === 4, null, { timeout: 10000 });
+const kinetic = (page) => page.waitForFunction(() => window.dcMotion?.instances().length === 2, null, { timeout: 10000 });
 const bandX = (page) => page.evaluate(() => new DOMMatrix(getComputedStyle(document.querySelector('#band .dc-band-track')).transform).m41);
-
-test('a heading on the screen when the page opens stays as it is', async () => {
-  const { context, page } = await open('kinetic');
-  await page.waitForFunction(() => window.dcMotion?.instances()[0]?.state === 'running', null, { timeout: 10000 });
-  await page.waitForTimeout(800);
-  assert.equal(await page.evaluate(() => document.querySelector('#early').children.length), 0);
-  await context.close();
-});
-
-/** Scrolls so that the heading's top is at `share` of the way down the screen. */
-const headingAt = (page, share) => page.evaluate((share) => {
-  const top = document.querySelector('#heading').getBoundingClientRect().top;
-  scrollBy(0, top - innerHeight * share);
-}, share);
-
-/** How far each of the heading's lines has risen, from 0 (down, out of sight) to 1 (in place). */
-const risen = (page) => page.evaluate(() => [...document.querySelectorAll('#heading [data-line] > span')].map((line) => {
-  const edge = line.parentNode.getBoundingClientRect();
-  const box = line.getBoundingClientRect();
-  return Math.round((1 - (box.top - edge.top) / edge.height) * 100) / 100;
-}));
-
-test('a heading rises line by line as the page scrolls it up the screen, read as the same text, then is its own markup again', async () => {
-  const { context, page } = await open('kinetic');
-  await kinetic(page);
-  await page.evaluate(() => {
-    window.em = document.querySelector('#heading em');
-    window.text = document.querySelector('#heading').textContent;
-  });
-  // Its height, and where what follows it starts: the same before, during and after.
-  const layout = () => page.evaluate(() => {
-    const heading = document.querySelector('#heading');
-    return [heading.offsetHeight, heading.nextElementSibling.offsetTop];
-  });
-  const before = await layout();
-  // In the bottom fifth of the screen: its lines down, waiting.
-  await headingAt(page, 0.85);
-  await page.waitForFunction(() => document.querySelectorAll('#heading [data-line]').length >= 2, null, { timeout: 5000 });
-  await page.waitForTimeout(200);
-  assert.ok((await risen(page)).every((r) => r <= 0.05), `down (${await risen(page)})`);
-  assert.equal(await page.evaluate(() => document.querySelector('#heading').textContent === window.text), true);
-  assert.deepEqual(await layout(), before, 'nothing moves while it rises');
-  // Part of the way up: part of the way risen, the first line furthest; still while the page is.
-  await headingAt(page, 0.6);
-  await page.waitForTimeout(200);
-  const part = await risen(page);
-  assert.ok(part[0] > 0.2 && part[0] < 1 && part[0] >= part.at(-1), `part of the way, in turn (${part})`);
-  await page.waitForTimeout(500);
-  assert.deepEqual(await risen(page), part, 'it waits for the page to scroll');
-  // Above the middle: risen, and the heading's own markup again.
-  await headingAt(page, 0.4);
-  await page.waitForFunction(() => !document.querySelector('#heading [data-line]'), null, { timeout: 3000 });
-  assert.equal(await page.evaluate(() => document.querySelector('#heading em') === window.em), true);
-  assert.equal(await page.evaluate(() => document.querySelector('#heading').textContent === window.text), true);
-  assert.deepEqual(await layout(), before, 'nor after');
-  await context.close();
-});
 
 test('a label scrambles as it scrolls in and on hover, in its own width, while screen readers have the real text', async () => {
   const { context, page } = await open('kinetic');
@@ -750,7 +692,7 @@ test('the band drifts, speeds up as the page scrolls, holds under the pause cont
   const { context, page } = await open('kinetic');
   await kinetic(page);
   await toward(page, 'band');
-  await page.waitForFunction(() => window.dcMotion.instances()[3].state === 'running');
+  await page.waitForFunction(() => window.dcMotion.instances()[1].state === 'running');
   await page.waitForTimeout(300);
   const a = await bandX(page);
   await page.waitForTimeout(500);
@@ -774,13 +716,12 @@ test('the band drifts, speeds up as the page scrolls, holds under the pause cont
   await context.close();
 });
 
-test('with motion paused, headings and labels show at once', async () => {
+test('with motion paused, a label shows at once', async () => {
   const { context, page } = await open('kinetic');
   await kinetic(page);
   await page.evaluate(() => window.dcMotion.pause());
-  await toward(page, 'heading');
+  await toward(page, 'label');
   await page.waitForTimeout(400);
-  assert.equal(await page.locator('#heading [data-line]').count(), 0);
   assert.equal(await page.locator('#label [aria-hidden="true"]').count(), 0);
   await context.close();
 });
@@ -789,9 +730,9 @@ test('without scripts, or under reduced motion, the type is still, and the band 
   for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }]) {
     const { context, page } = await open('kinetic', options);
     await page.waitForTimeout(1200);
-    await toward(page, 'heading');
+    await toward(page, 'label');
     await page.waitForTimeout(600);
-    assert.equal(await page.locator('#heading [data-line]').count(), 0, JSON.stringify(options));
+    assert.equal(await page.locator('#label [aria-hidden="true"]').count(), 0, JSON.stringify(options));
     assert.equal(await page.locator('#band [aria-hidden="true"]').count(), 0, JSON.stringify(options));
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#band')).whiteSpace), 'normal', JSON.stringify(options));
     await context.close();
@@ -801,5 +742,5 @@ test('without scripts, or under reduced motion, the type is still, and the band 
 test('dc-qa passes kinetic type, with the band\'s pause control', async () => {
   const result = await checkMotion(browser, fixture('kinetic'));
   assert.deepEqual(result.problems, []);
-  assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false, true]);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false, true]);
 });
