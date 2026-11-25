@@ -123,8 +123,10 @@ jobs:
       # MB a page, which every run of every site would spend the Actions storage on.
       - name: Lighthouse scores
         if: ${{ !cancelled() && (steps.lighthouse.outcome == 'success' || steps.lighthouse.outcome == 'failure') }}
+        # A heredoc, not node -e '…': the script may hold any quote, and an apostrophe in a comment
+        # once ended it early, failing the step (2026-11-25).
         run: |
-          node -e '
+          node <<'SCORES' | tee -a "$GITHUB_STEP_SUMMARY"
             const fs = require("fs");
             const runs = fs.readdirSync(".lighthouseci").filter((f) => /^lhr-.*\.json$/.test(f))
               .map((f) => JSON.parse(fs.readFileSync(".lighthouseci/" + f, "utf8")))
@@ -150,7 +152,7 @@ jobs:
               lines.push(`| ${page} | ${largest} | ${long || "none"} |`);
             }
             console.log(lines.join("\n"));
-          ' | tee -a "$GITHUB_STEP_SUMMARY"
+          SCORES
 
       # The reports only when Lighthouse failed, which is when someone reads them. Uploaded from
       # every run, at 15 to 27 MB a run on the larger sites, they held 2.4 GB against the Free
