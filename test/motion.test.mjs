@@ -1121,6 +1121,28 @@ test('under reduced motion the look stays and nothing moves; under forced colour
   await forced.context.close();
 });
 
+test('grain adds texture to the photo without lightening or darkening it', async () => {
+  const { default: sharp } = await import('sharp');
+  const { context, page } = await open('print');
+  await page.locator('#grain').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const grey = async () => sharp(await page.locator('#grain').screenshot()).greyscale().raw().toBuffer();
+  const grained = await grey();
+  await page.evaluate(() => (document.querySelector('#grain .dc-print-look').style.display = 'none'));
+  const bare = await grey();
+  let change = 0;
+  let shift = 0;
+  for (let i = 0; i < bare.length; i++) {
+    change += Math.abs(grained[i] - bare[i]);
+    shift += grained[i] - bare[i];
+  }
+  change /= bare.length;
+  shift /= bare.length;
+  assert.ok(change > 8, `seen: a mean change of ${change.toFixed(1)} levels`);
+  assert.ok(Math.abs(shift) < 3, `no lighter or darker overall: ${shift.toFixed(1)} levels`);
+  await context.close();
+});
+
 test('moving grain jumps while it runs, with the page\'s pause control, and holds when paused; still grain runs nothing', async () => {
   const { context, page } = await open('print');
   await page.waitForFunction(() => window.dcMotion?.instances().length === 5);

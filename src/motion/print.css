@@ -8,7 +8,10 @@
    halftone its dots, each as large as the photo is dark there. The colours go on by blend modes,
    multiplying by the light and lightening with the dark: exact where the dark is no lighter than
    the light in each of red, green and blue, which Print.astro checks. Grain is fractal noise laid
-   over everything in the element as an overlay.
+   over everything in the element as an overlay: grey, stretched four times about the middle, and
+   worked in sRGB, so it averages a true mid-grey and adds texture without lightening the photo
+   (in the filter's default linear colour its "half" is 74% on screen, which only washed the photo
+   out a little, and a grey even in colour that varied only in its alpha changed nothing at all).
 
    print.js moves it: --dc-print-blank, from 1, all paper, to 0, as a photo prints itself, and the
    circle of the photo's own colours (.is-lens), at --dc-print-x and --dc-print-y, --dc-print-lens
@@ -18,9 +21,9 @@
    On .dc-print, a site may set --dc-print-size, the dither's pixel or the halftone's dot spacing
    (2px and 6px); --dc-print-tone, how much the photo is lightened before it is printed (1.1);
    --dc-print-position, the photo's object-position, if it isn't centred; and --dc-print-grain,
-   the grain's strength (0.3). The component writes them from its props. */
+   the grain's strength (0.4). The component writes them from its props. */
 
-:where(.dc-print) { --dc-print-dark: #111; --dc-print-light: #fff; --dc-print-size: 2px; --dc-print-tone: 1.1; --dc-print-grain: 0.3; display: block; position: relative; isolation: isolate; overflow: hidden; }
+:where(.dc-print) { --dc-print-dark: #111; --dc-print-light: #fff; --dc-print-size: 2px; --dc-print-tone: 1.1; --dc-print-grain: 0.4; display: block; position: relative; isolation: isolate; overflow: hidden; }
 :where(.dc-print--halftone) { --dc-print-size: 6px; }
 
 .dc-print-look { position: absolute; inset: 0; z-index: 1; isolation: isolate; pointer-events: none; }
@@ -40,7 +43,7 @@
   mask-image: radial-gradient(circle at var(--dc-print-x) var(--dc-print-y), transparent calc(var(--dc-print-lens) * 0.5), #000 var(--dc-print-lens));
 }
 
-.dc-print--grain > .dc-print-look { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1.6 -.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 160px 160px; opacity: var(--dc-print-grain); mix-blend-mode: overlay; }
+.dc-print--grain > .dc-print-look { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='4 0 0 0 -1.5 4 0 0 0 -1.5 4 0 0 0 -1.5 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 160px 160px; opacity: var(--dc-print-grain); mix-blend-mode: overlay; }
 .dc-print--grain[data-motion-state='running'] > .dc-print-look { animation: dc-print-grain 1s steps(1) infinite; }
 @keyframes dc-print-grain {
   0% { background-position: 0 0; }
