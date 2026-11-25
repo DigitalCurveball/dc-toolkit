@@ -1,0 +1,9 @@
+---
+// One step of a ScrollStory: its picture in the `picture` slot, an <img> or Astro's <Image> with
+// its alt text, and its lines in the default slot.
+---
+
+<div class="dc-story-step">
+  <figure class="dc-story-picture"><slot name="picture" /></figure>
+  <div class="dc-story-text"><slot /></div>
+</div>

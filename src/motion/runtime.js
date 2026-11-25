@@ -42,7 +42,9 @@
 // same at 30 for half the work, which matters most on a phone's battery. An effect with no `frame`
 // animates in CSS, paused through its element's `data-motion-state`. `loops` is false for an
 // effect that plays once and stops within five seconds, which needs no pause control, and whose
-// clock starts when it is seen.
+// clock starts when it is seen. `pausable` is false for an effect that moves only as the visitor
+// scrolls, such as the scroll story: the pause control is for motion that starts by itself, and
+// a story stopped mid-scroll would show the wrong step's picture.
 //
 // Plain JavaScript with no build and no imports, so a concept runs the same file the site does.
 
@@ -164,6 +166,7 @@ async function setup(record) {
   if (!inst) return fail(record, 'unsupported');
   record.inst = inst;
   record.loops = Boolean(effect.loops);
+  record.pausable = effect.pausable !== false;
   record.interval = 1 / (effect.fps ?? 60);
   record.since = Infinity;
   record.time = 0;
@@ -246,7 +249,7 @@ function update() {
   let anyRunning = false;
   for (const record of records.values()) {
     if (!record.inst) continue;
-    const running = !paused && !hidden && record.visible && !record.lost;
+    const running = (!paused || !record.pausable) && !hidden && record.visible && !record.lost;
     const state = running ? 'running' : paused ? 'paused' : 'idle';
     if (state !== record.state) {
       if (running) record.inst.resume?.();

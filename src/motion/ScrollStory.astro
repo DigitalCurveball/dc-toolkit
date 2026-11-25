@@ -1,0 +1,59 @@
+---
+// A pinned scroll story (story.js, story.css): steps that each pair a picture with a few lines,
+// the picture pinned beside them (above them on a phone) and changing as each is read.
+//
+//   <ScrollStory steps={phases.length} enabled={how.motion}>
+//     {phases.map((phase) => (
+//       <StoryStep>
+//         <Image slot="picture" src={phase.photo.src} alt={phase.photo.alt} widths={[480, 800, 1200]} sizes="(min-width: 900px) 50vw, 100vw" />
+//         <h3>{phase.name}</h3>
+//         <p>{phase.text}</p>
+//       </StoryStep>
+//     ))}
+//   </ScrollStory>
+//
+// The markup it writes, the same in a concept, which links motion/story.css beside motion.css:
+//
+//   <section class="dc-motion dc-story" data-motion="story" style="--dc-story-steps: 4">
+//     <div class="dc-story-steps">
+//       <div class="dc-story-step"><figure class="dc-story-picture"><img …></figure><div class="dc-story-text">…</div></div>
+//       …
+//     </div>
+//   </section>
+//
+// Its still, without scripts, under reduced motion and where `enabled` is off (the editor's
+// on/off), is the steps stacked, each with its picture. It moves only as the visitor scrolls, so
+// it needs no MotionToggle. A site sets the pictures' shape with `ratio`, and on .dc-story may set
+// --dc-story-top, a sticky header's height, and --dc-story-gap (story.css). Any other attribute
+// goes on the element.
+
+import './motion.css';
+import './story.css';
+
+interface Props {
+  /** How many steps there are. */
+  steps: number;
+  /** The pictures' shape, as CSS writes an aspect ratio: '4 / 3' by default. */
+  ratio?: string;
+  /** The editor's on/off: off, the steps stay stacked and nothing runs. */
+  enabled?: boolean;
+  /** The element to render, `section` by default. */
+  as?: string;
+  class?: string;
+  style?: string;
+  [attribute: string]: unknown;
+}
+
+const { steps, ratio, enabled = true, as: Element = 'section', class: className, style, ...attributes } = Astro.props;
+const custom = [`--dc-story-steps: ${steps}`, ratio && `--dc-story-ratio: ${ratio}`, style].filter(Boolean).join('; ');
+---
+
+<Element {...attributes} class:list={['dc-motion', 'dc-story', className]} style={custom} data-motion={enabled ? 'story' : undefined}>
+  <div class="dc-story-steps"><slot /></div>
+</Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ story: () => import('./story.js') });
+</script>

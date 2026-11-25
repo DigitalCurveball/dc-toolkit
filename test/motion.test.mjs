@@ -510,3 +510,136 @@ test('dc-qa passes the rippling photos, which need no pause control', async () =
   assert.deepEqual(result.problems, []);
   assert.deepEqual(result.effects.map((e) => e.loops), [false, false]);
 });
+
+// The scroll story (story.js and story.css), from fixtures/motion/story.html: four steps, each a
+// picture and a few lines, below 700px of page.
+
+/** Each picture's opacity, and where the shown one is on the screen. */
+const story = (page) => page.evaluate(() => {
+  const pictures = [...document.querySelectorAll('.dc-story-picture')];
+  const shown = pictures.findIndex((p) => getComputedStyle(p).opacity === '1');
+  const box = pictures[Math.max(shown, 0)].getBoundingClientRect();
+  return { opacities: pictures.map((p) => getComputedStyle(p).opacity), shown, top: Math.round(box.top), left: Math.round(box.left), position: getComputedStyle(pictures[0]).position };
+});
+
+/** Scrolls so that step `i`'s text has its top a little above the middle of the screen. */
+const readStep = (page, i) => page.evaluate((i) => {
+  const text = document.querySelectorAll('.dc-story-text')[i];
+  const picture = document.querySelector('.dc-story-picture').getBoundingClientRect();
+  const beside = picture.left >= text.getBoundingClientRect().right - 1;
+  const line = beside ? innerHeight / 2 : (picture.height + innerHeight) / 2;
+  scrollBy(0, text.getBoundingClientRect().top - line + 40);
+}, i);
+
+const settled = (page) => page.waitForTimeout(900); // a frame, and the cross-fade's 0.6s
+
+test('on a laptop the scroll story pins its picture beside the steps, and shows each step\'s as it reaches the middle', async () => {
+  const { context, page } = await open('story');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 1);
+  await readStep(page, 0);
+  await page.waitForFunction(() => window.dcMotion.instances()[0].state === 'running');
+  await settled(page);
+  const first = await story(page);
+  assert.equal(first.position, 'sticky');
+  assert.equal(first.shown, 0);
+  assert.ok(first.left > 500, `beside the steps (${first.left})`);
+  // It rises with the first step until it is centred on the screen, then holds there.
+  await readStep(page, 1);
+  await settled(page);
+  const second = await story(page);
+  await readStep(page, 2);
+  await settled(page);
+  const third = await story(page);
+  assert.equal(second.shown, 1);
+  assert.equal(third.shown, 2);
+  assert.deepEqual(third.opacities.filter((o) => o !== '0').length, 1);
+  assert.ok(Math.abs(third.top - second.top) <= 1, `pinned (${second.top}, then ${third.top})`);
+  assert.ok(Math.abs(third.top + (await page.evaluate(() => document.querySelector('.dc-story-picture').offsetHeight)) / 2 - 400) <= 2, 'in the middle of the screen');
+  await context.close();
+});
+
+test('on a phone the scroll story pins its picture above the steps, which scroll beneath it', async () => {
+  const { context, page } = await open('story', { viewport: { width: 390, height: 844 } });
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 1);
+  await readStep(page, 1);
+  await page.waitForFunction(() => window.dcMotion.instances()[0].state === 'running');
+  await settled(page);
+  const second = await story(page);
+  assert.equal(second.shown, 1);
+  assert.equal(second.top, 0);
+  await readStep(page, 3);
+  await settled(page);
+  const fourth = await story(page);
+  assert.equal(fourth.shown, 3);
+  assert.equal(fourth.top, 0);
+  // The step being read is below the picture, not under it.
+  const covered = await page.evaluate(() => {
+    const text = document.querySelectorAll('.dc-story-text')[3].querySelector('h2').getBoundingClientRect();
+    return text.top < document.querySelector('.dc-story-picture').getBoundingClientRect().bottom;
+  });
+  assert.equal(covered, false);
+  await context.close();
+});
+
+test('without scripts, or under reduced motion, the scroll story is its steps stacked, each with its picture', async () => {
+  for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }]) {
+    const { context, page } = await open('story', options);
+    await page.waitForTimeout(1200);
+    const { opacities, position } = await story(page);
+    assert.equal(position, 'static', JSON.stringify(options));
+    assert.deepEqual(opacities, ['1', '1', '1', '1'], JSON.stringify(options));
+    // Each picture sits above its own step's text, in order down the page.
+    const order = await page.evaluate(() => [...document.querySelectorAll('.dc-story-step')].map((s) => {
+      const p = s.querySelector('.dc-story-picture').getBoundingClientRect();
+      const t = s.querySelector('.dc-story-text').getBoundingClientRect();
+      return [Math.round(p.top), Math.round(t.top)];
+    }));
+    order.forEach(([picture, text], i) => {
+      assert.ok(picture < text, `step ${i}: its picture above its text`);
+      if (i) assert.ok(picture > order[i - 1][1], `step ${i}: below the step before`);
+    });
+    await context.close();
+  }
+});
+
+test("tabbing into a step shows its picture", async () => {
+  const { context, page } = await open('story');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 1);
+  await readStep(page, 0);
+  await page.waitForFunction(() => window.dcMotion.instances()[0].state === 'running');
+  await settled(page);
+  await page.focus('.dc-story-step:last-child a');
+  await settled(page);
+  assert.equal((await story(page)).shown, 3);
+  await context.close();
+});
+
+test('the pause control leaves the scroll story be: it moves only as the visitor scrolls', async () => {
+  const { context, page } = await open('story');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 1);
+  await readStep(page, 0);
+  await page.waitForFunction(() => window.dcMotion.instances()[0].state === 'running');
+  await page.evaluate(() => window.dcMotion.pause());
+  await readStep(page, 2);
+  await settled(page);
+  assert.equal((await story(page)).shown, 2);
+  await context.close();
+});
+
+test('the scroll story shifts nothing when its script starts, even on the first screen', async () => {
+  const { context, page } = await open('story', {}, (context) => context.addInitScript(() => {
+    window.shifts = 0;
+    new PerformanceObserver((list) => { for (const entry of list.getEntries()) window.shifts += entry.value; }).observe({ type: 'layout-shift', buffered: true });
+  }));
+  await page.evaluate(() => scrollTo(0, 700)); // the story at the top of the screen, before the script starts
+  await page.waitForFunction(() => window.dcMotion?.instances()[0]?.state === 'running', null, { timeout: 10000 });
+  await settled(page);
+  assert.equal(await page.evaluate(() => window.shifts), 0);
+  await context.close();
+});
+
+test('dc-qa passes the scroll story, which needs no pause control', async () => {
+  const result = await checkMotion(browser, fixture('story'));
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false]);
+});
