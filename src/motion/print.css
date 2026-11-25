@@ -1,0 +1,58 @@
+/* Grain, dither and halftone on photos (print.js; the markup in Print.astro's comment), in two
+   colours, --dc-print-dark and --dc-print-light.
+
+   The look is CSS, there from the first paint, without scripts and under reduced motion alike,
+   since a look isn't motion. Dither and halftone draw a grey copy of the photo, averaged with a
+   screen and thresholded by an extreme contrast, so that every point is one colour or the other: a
+   4 by 4 Bayer tile gives the dither its ordered pixels, and a grid of soft dots turned 45° the
+   halftone its dots, each as large as the photo is dark there. The colours go on by blend modes,
+   multiplying by the light and lightening with the dark: exact where the dark is no lighter than
+   the light in each of red, green and blue, which Print.astro checks. Grain is fractal noise laid
+   over everything in the element as an overlay.
+
+   print.js moves it: --dc-print-blank, from 1, all paper, to 0, as a photo prints itself, and the
+   circle of the photo's own colours (.is-lens), at --dc-print-x and --dc-print-y, --dc-print-lens
+   across. Moving grain (`grain`) jumps about ten times a second while it runs, which the runtime
+   says in data-motion-state. Under forced colours the photo is as it is.
+
+   On .dc-print, a site may set --dc-print-size, the dither's pixel or the halftone's dot spacing
+   (2px and 6px); --dc-print-tone, how much the photo is lightened before it is printed (1.1);
+   --dc-print-position, the photo's object-position, if it isn't centred; and --dc-print-grain,
+   the grain's strength (0.3). The component writes them from its props. */
+
+:where(.dc-print) { --dc-print-dark: #111; --dc-print-light: #fff; --dc-print-size: 2px; --dc-print-tone: 1.1; --dc-print-grain: 0.3; display: block; position: relative; isolation: isolate; overflow: hidden; }
+:where(.dc-print--halftone) { --dc-print-size: 6px; }
+
+.dc-print-look { position: absolute; inset: 0; z-index: 1; isolation: isolate; pointer-events: none; }
+.dc-print-tone { position: absolute; inset: 0; overflow: hidden; filter: contrast(60); }
+.dc-print-tone img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; object-position: var(--dc-print-position, 50% 50%); filter: grayscale(1) brightness(var(--dc-print-tone)); }
+.dc-print--halftone .dc-print-tone img { filter: grayscale(1) blur(calc(var(--dc-print-size) * 0.35)) brightness(var(--dc-print-tone)); }
+.dc-print-blank { position: absolute; inset: 0; background: #fff; opacity: var(--dc-print-blank, 0); }
+.dc-print-screen { position: absolute; inset: 0; opacity: 0.5; }
+.dc-print--dither .dc-print-screen { background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='4'%20height='4'%20shape-rendering='crispEdges'%3E%3Crect%20x='0'%20y='0'%20width='1'%20height='1'%20fill='rgb(247,247,247)'/%3E%3Crect%20x='1'%20y='0'%20width='1'%20height='1'%20fill='rgb(120,120,120)'/%3E%3Crect%20x='2'%20y='0'%20width='1'%20height='1'%20fill='rgb(215,215,215)'/%3E%3Crect%20x='3'%20y='0'%20width='1'%20height='1'%20fill='rgb(88,88,88)'/%3E%3Crect%20x='0'%20y='1'%20width='1'%20height='1'%20fill='rgb(56,56,56)'/%3E%3Crect%20x='1'%20y='1'%20width='1'%20height='1'%20fill='rgb(183,183,183)'/%3E%3Crect%20x='2'%20y='1'%20width='1'%20height='1'%20fill='rgb(24,24,24)'/%3E%3Crect%20x='3'%20y='1'%20width='1'%20height='1'%20fill='rgb(151,151,151)'/%3E%3Crect%20x='0'%20y='2'%20width='1'%20height='1'%20fill='rgb(199,199,199)'/%3E%3Crect%20x='1'%20y='2'%20width='1'%20height='1'%20fill='rgb(72,72,72)'/%3E%3Crect%20x='2'%20y='2'%20width='1'%20height='1'%20fill='rgb(231,231,231)'/%3E%3Crect%20x='3'%20y='2'%20width='1'%20height='1'%20fill='rgb(104,104,104)'/%3E%3Crect%20x='0'%20y='3'%20width='1'%20height='1'%20fill='rgb(8,8,8)'/%3E%3Crect%20x='1'%20y='3'%20width='1'%20height='1'%20fill='rgb(135,135,135)'/%3E%3Crect%20x='2'%20y='3'%20width='1'%20height='1'%20fill='rgb(40,40,40)'/%3E%3Crect%20x='3'%20y='3'%20width='1'%20height='1'%20fill='rgb(167,167,167)'/%3E%3C/svg%3E") 0 0 / calc(var(--dc-print-size) * 4) calc(var(--dc-print-size) * 4); image-rendering: pixelated; }
+.dc-print--halftone .dc-print-screen { inset: -50%; transform: rotate(45deg); background: radial-gradient(circle closest-side, #000 0, #101010 25%, #404040 50%, #909090 75%, #fff 100%) 0 0 / var(--dc-print-size) var(--dc-print-size); }
+.dc-print-light, .dc-print-dark { position: absolute; inset: 0; }
+.dc-print-light { background: var(--dc-print-light); mix-blend-mode: multiply; }
+.dc-print-dark { background: var(--dc-print-dark); mix-blend-mode: lighten; }
+
+.dc-print.is-lens > .dc-print-look {
+  -webkit-mask-image: radial-gradient(circle at var(--dc-print-x) var(--dc-print-y), transparent calc(var(--dc-print-lens) * 0.5), #000 var(--dc-print-lens));
+  mask-image: radial-gradient(circle at var(--dc-print-x) var(--dc-print-y), transparent calc(var(--dc-print-lens) * 0.5), #000 var(--dc-print-lens));
+}
+
+.dc-print--grain > .dc-print-look { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1.6 -.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 160px 160px; opacity: var(--dc-print-grain); mix-blend-mode: overlay; }
+.dc-print--grain[data-motion-state='running'] > .dc-print-look { animation: dc-print-grain 1s steps(1) infinite; }
+@keyframes dc-print-grain {
+  0% { background-position: 0 0; }
+  10% { background-position: -37px 61px; }
+  20% { background-position: 83px -19px; }
+  30% { background-position: -71px -97px; }
+  40% { background-position: 29px 113px; }
+  50% { background-position: -113px 41px; }
+  60% { background-position: 59px -73px; }
+  70% { background-position: -11px -131px; }
+  80% { background-position: 101px 89px; }
+  90% { background-position: -89px -23px; }
+}
+
+@media (forced-colors: active) { .dc-print-look { display: none; } }

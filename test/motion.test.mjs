@@ -962,3 +962,183 @@ test('dc-qa passes the stack, measuring each card\'s text where it is seen', asy
   assert.deepEqual(result.effects.map((e) => e.loops), [false]);
   assert.ok(result.contrast.some((c) => c.text.startsWith('Fanlight')), 'the last card measured');
 });
+
+// Grain, dither and halftone (print.js and print.css), from fixtures/motion/print.html: a dithered
+// photo on the first screen (#first), then a dithered one (#dither) and a halftone one (#halftone),
+// each over a screen below the last, a halftone inside a link (#linked), still grain (#grain), and
+// moving grain over a section's words (#moving), with the page's pause control. The photo has a
+// red circle (#d8452b) centred at 70% across and 35% down.
+
+const INK = [0x14, 0x14, 0x14];
+const PAPER = [0xf6, 0xf6, 0xf4];
+const RED = [0xd1, 0x1f, 0x1f];
+const BLUSH = [0xff, 0xf1, 0xf1];
+const CIRCLE = [0xd8, 0x45, 0x2b];
+const near = (a, b, by = 40) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) <= by;
+
+/**
+ * The pixels of an element where they are on the screen, down to `rows` CSS pixels from its top,
+ * without scrolling, which would move what scrolling moves: the share near each colour given, and
+ * the colour at a point, as shares of the element's width and height (null off the screen).
+ */
+async function pixels(page, id, colours, point = [0.7, 0.35], rows = Infinity) {
+  const { default: sharp } = await import('sharp');
+  const box = await page.locator(`#${id}`).boundingBox();
+  const view = page.viewportSize();
+  const top = Math.max(box.y, 0);
+  const bottom = Math.min(box.y + Math.min(box.height, rows), view.height);
+  const clip = { x: box.x, y: top, width: box.width, height: bottom - top };
+  const shot = await page.screenshot({ clip, animations: 'disabled' });
+  const { data, info } = await sharp(shot).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const shares = colours.map(() => 0);
+  for (let i = 0; i < data.length; i += 3) colours.forEach((c, k) => { if (near([data[i], data[i + 1], data[i + 2]], c)) shares[k]++; });
+  const y = box.y + point[1] * box.height - top;
+  const i = (Math.floor(y * info.height / clip.height) * info.width + Math.floor(point[0] * info.width)) * 3;
+  const at = y >= 0 && y < clip.height ? [data[i], data[i + 1], data[i + 2]] : null;
+  return { shares: shares.map((n) => n / (info.width * info.height)), at };
+}
+const blankOf = (page, id) => page.evaluate((id) => document.getElementById(id).style.getPropertyValue('--dc-print-blank'), id);
+
+test('dither and halftone draw the photo in their two colours from the first paint, without scripts too', async () => {
+  for (const options of [{ javaScriptEnabled: false }, {}]) {
+    const { context, page } = await open('print', options);
+    await page.waitForTimeout(500);
+    const dither = await pixels(page, 'first', [INK, PAPER]);
+    assert.ok(dither.shares.every((s) => s > 0.15) && dither.shares[0] + dither.shares[1] > 0.95, `dither in Ink and Paper, ${JSON.stringify(options)}: ${dither.shares}`);
+    await page.locator('#halftone').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    const halftone = await pixels(page, 'halftone', [RED, BLUSH]);
+    assert.ok(halftone.shares.every((s) => s > 0.1) && halftone.shares[0] + halftone.shares[1] > 0.85, `halftone in red and blush, ${JSON.stringify(options)}: ${halftone.shares}`);
+    await context.close();
+  }
+});
+
+test('a photo below the screen prints itself as the page scrolls it up, darks first, and never goes back', async () => {
+  const { context, page } = await open('print');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 5);
+  await photoAt(page, 'dither', 1.1);
+  await started(page, 'dither');
+  assert.equal(await blankOf(page, 'dither'), '1.000');
+  await photoAt(page, 'dither', 0.98);
+  await page.waitForTimeout(100);
+  const paper = await pixels(page, 'dither', [INK, PAPER]);
+  assert.ok(paper.shares[1] > 0.97, `blank: all paper as it comes on (${paper.shares})`);
+  // Its top 150px, partway and then printed.
+  await photoAt(page, 'dither', 0.78);
+  await caughtUp(page);
+  const partway = await pixels(page, 'dither', [INK, PAPER], undefined, 150);
+  await photoAt(page, 'dither', 0.1);
+  await caughtUp(page);
+  const printed = await pixels(page, 'dither', [INK, PAPER], undefined, 150);
+  assert.equal(await blankOf(page, 'dither'), '');
+  assert.ok(partway.shares[0] > 0.02 && partway.shares[0] < printed.shares[0] * 0.9, `partway printed (${partway.shares[0].toFixed(3)} of ${printed.shares[0].toFixed(3)} ink)`);
+  await photoAt(page, 'dither', 1.05);
+  await caughtUp(page);
+  assert.equal(await blankOf(page, 'dither'), '', 'never blank again');
+  await context.close();
+});
+
+test('a photo on the screen when the page opens is printed already', async () => {
+  const { context, page } = await open('print');
+  await started(page, 'first');
+  await page.evaluate(() => scrollBy(0, 200));
+  await caughtUp(page);
+  assert.equal(await blankOf(page, 'first'), '');
+  assert.ok((await pixels(page, 'first', [INK, PAPER])).shares[0] > 0.15);
+  await context.close();
+});
+
+test('the photo\'s own colours show under the cursor, and the look closes over them when it leaves', async () => {
+  const { context, page } = await open('print');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 5);
+  await page.locator('#halftone').scrollIntoViewIfNeeded();
+  await started(page, 'halftone');
+  const box = await page.locator('#halftone').boundingBox();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.35, { steps: 4 });
+  await page.waitForTimeout(600);
+  const over = await pixels(page, 'halftone', [RED, BLUSH]);
+  assert.ok(near(over.at, CIRCLE, 30), `the circle's own red under the cursor (${over.at})`);
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(800);
+  const left = await pixels(page, 'halftone', [RED, BLUSH]);
+  assert.ok(!near(left.at, CIRCLE, 30), `printed again (${left.at})`);
+  assert.equal(await page.evaluate(() => document.getElementById('halftone').classList.contains('is-lens')), false);
+  await context.close();
+});
+
+test('a tap shows the photo\'s own colours where the finger lands, for a moment; not on a photo inside a link', async () => {
+  const { context, page } = await open('print', { hasTouch: true });
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 5);
+  await page.locator('#halftone').scrollIntoViewIfNeeded();
+  await started(page, 'halftone');
+  const box = await page.locator('#halftone').boundingBox();
+  await page.touchscreen.tap(box.x + box.width * 0.7, box.y + box.height * 0.35);
+  await page.waitForTimeout(400);
+  assert.ok(near((await pixels(page, 'halftone', [RED, BLUSH])).at, CIRCLE, 30), 'open under the finger');
+  await page.waitForTimeout(1500);
+  assert.equal(await page.evaluate(() => document.getElementById('halftone').classList.contains('is-lens')), false, 'closed again');
+  await page.locator('#linked').scrollIntoViewIfNeeded();
+  await started(page, 'linked');
+  const linked = await page.locator('#linked').boundingBox();
+  await page.evaluate(() => { window.lensed = false; new MutationObserver(() => { if (document.getElementById('linked').classList.contains('is-lens')) window.lensed = true; }).observe(document.getElementById('linked'), { attributes: true }); });
+  await page.touchscreen.tap(linked.x + linked.width / 2, linked.y + linked.height / 2);
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => window.lensed), false);
+  assert.match(page.url(), /#end$/, 'the link opened');
+  await context.close();
+});
+
+test('with motion paused, a photo prints at once', async () => {
+  const { context, page } = await open('print');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 5);
+  await photoAt(page, 'dither', 1.1);
+  await started(page, 'dither');
+  await photoAt(page, 'dither', 0.9);
+  await page.waitForTimeout(300);
+  assert.notEqual(await blankOf(page, 'dither'), '', 'printing');
+  await page.evaluate(() => window.dcMotion.pause());
+  await page.waitForTimeout(200);
+  assert.equal(await blankOf(page, 'dither'), '', 'printed at once');
+  await page.locator('#halftone').scrollIntoViewIfNeeded();
+  await photoAt(page, 'halftone', 1.1);
+  await started(page, 'halftone');
+  assert.equal(await blankOf(page, 'halftone'), '', 'never blank while paused');
+  await context.close();
+});
+
+test('under reduced motion the look stays and nothing moves; under forced colours the photo is as it is', async () => {
+  const reduced = await open('print', { reducedMotion: 'reduce' });
+  await reduced.page.waitForTimeout(1200);
+  await photoAt(reduced.page, 'dither', 0.5);
+  await reduced.page.waitForTimeout(400);
+  assert.equal(await blankOf(reduced.page, 'dither'), '');
+  assert.ok((await pixels(reduced.page, 'dither', [INK, PAPER])).shares[0] > 0.15, 'the look');
+  assert.equal(await reduced.page.evaluate(() => getComputedStyle(document.querySelector('#moving .dc-print-look')).animationName), 'none', 'the grain still');
+  await reduced.context.close();
+  const forced = await open('print', { forcedColors: 'active' });
+  await forced.page.waitForTimeout(500);
+  assert.ok(near((await pixels(forced.page, 'first', [INK, PAPER])).at, CIRCLE, 30), 'the photo itself');
+  await forced.context.close();
+});
+
+test('moving grain jumps while it runs, with the page\'s pause control, and holds when paused; still grain runs nothing', async () => {
+  const { context, page } = await open('print');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 5);
+  assert.equal(await page.evaluate(() => document.getElementById('grain').hasAttribute('data-motion')), false, 'still grain is CSS alone');
+  await page.locator('#moving').scrollIntoViewIfNeeded();
+  await started(page, 'moving');
+  const animation = () => page.evaluate(() => getComputedStyle(document.querySelector('#moving .dc-print-look')).animationName);
+  assert.equal(await animation(), 'dc-print-grain');
+  const toggle = page.locator('.dc-motion-toggle');
+  assert.equal(await toggle.isVisible(), true);
+  await toggle.click();
+  await page.waitForTimeout(100);
+  assert.equal(await animation(), 'none');
+  await context.close();
+});
+
+test('dc-qa passes the printed photos and the moving grain, with its pause control', async () => {
+  const result = await checkMotion(browser, fixture('print'));
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false, false, true]);
+});
