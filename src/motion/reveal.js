@@ -1,6 +1,9 @@
-// Headings that reveal line by line (dc-pipeline #54): as a heading scrolls into view, each of its
-// lines rises from behind an edge, one after another, and then the heading is its own markup
-// again, the same nodes, so nothing a site attached to them is lost.
+// Headings that reveal line by line (dc-pipeline #54): as the page scrolls a heading up the
+// screen, from the bottom fifth to just past the middle, each of its lines rises from behind an
+// edge, one after another, as far as the scrolling has taken it; then the heading is its own
+// markup again, the same nodes, so nothing a site attached to them is lost. Tied to the scrolling,
+// not a clock, so it can't be over before anyone looks, or at the foot of the screen (Mena,
+// 2026-11-25, of the first, timed version: "too quick to notice"). It never sinks again.
 //
 // Its still is the heading as written. A heading already on the screen when the page opens stays
 // as it is: hiding the page's main heading until a script runs would break "the still paints
@@ -8,14 +11,16 @@
 // paused motion. While the lines rise, each is a copy of that line's own markup, an <em> and all,
 // and the heading reads as the same text, since each line keeps the space that ended it.
 //
-// It plays once, in about a second: no pause control (`loops: false`), and its clock starts when
-// the heading is seen (runtime.js).
+// It moves only as the visitor scrolls: no pause control (`loops: false`), and the pause control
+// leaves it be (`pausable: false`), as it does the scroll story.
 
-const RISE = 0.8; // seconds a line takes to rise
-const STAGGER = 0.09; // seconds between one line setting off and the next
+const FROM = 0.8; // where the heading's top is when its lines set off, as a share of the screen's height
+const TO = 0.45; // and where, when the last is in place
+const STAGGER = 0.12; // how far behind the line before each line follows, as a share of the way
 
 export default {
   loops: false,
+  pausable: false,
   setup(element, kit) {
     if (kit.opening || kit.paused()) return {};
     const original = [...element.childNodes];
@@ -40,7 +45,9 @@ export default {
     column.append(...inners.map((inner) => inner.parentNode));
     element.replaceChildren(column);
     let done = false;
-    let begun = false; // seen, and rising
+    let begun = false; // rising
+    let way = 0; // how far up the screen the scrolling has taken it, from 0 to 1, never less
+    const behind = Math.min(STAGGER, 0.5 / Math.max(inners.length - 1, 1));
     const finish = () => {
       if (done) return;
       done = true;
@@ -48,19 +55,24 @@ export default {
     };
 
     return {
-      frame(time) {
+      frame() {
         if (done) return false;
-        begun ||= time > 0;
-        if (time >= (inners.length - 1) * STAGGER + RISE) return void finish();
+        const top = element.getBoundingClientRect().top;
+        const now = Math.min(Math.max((FROM * innerHeight - top) / ((FROM - TO) * innerHeight), 0), 1);
+        if (now <= way && begun) return false;
+        way = Math.max(way, now);
+        begun = true;
+        if (way >= 1) return void finish();
+        const span = 1 - behind * (inners.length - 1);
         inners.forEach((inner, i) => {
-          const p = Math.min(Math.max((time - i * STAGGER) / RISE, 0), 1);
-          inner.style.transform = `translateY(${((1 - p) ** 3 * 110).toFixed(2)}%)`;
+          const p = Math.min(Math.max((way - i * behind) / span, 0), 1);
+          inner.style.transform = `translateY(${((1 - p) ** 2 * 110).toFixed(2)}%)`;
         });
       },
-      // Paused by the visitor, or off the screen or in a hidden tab once it has begun to rise:
-      // the heading as it is, at once, since nobody is watching it rise.
+      // Off the screen or in a hidden tab once it has begun to rise: the heading as it is, at
+      // once, since nobody is watching it rise.
       pause() {
-        if (kit.paused() || begun) finish();
+        if (way > 0) finish();
       },
       destroy: finish,
     };

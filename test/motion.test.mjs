@@ -661,7 +661,20 @@ test('a heading on the screen when the page opens stays as it is', async () => {
   await context.close();
 });
 
-test('a heading scrolled into view rises line by line, read as the same text, then is its own markup again', async () => {
+/** Scrolls so that the heading's top is at `share` of the way down the screen. */
+const headingAt = (page, share) => page.evaluate((share) => {
+  const top = document.querySelector('#heading').getBoundingClientRect().top;
+  scrollBy(0, top - innerHeight * share);
+}, share);
+
+/** How far each of the heading's lines has risen, from 0 (down, out of sight) to 1 (in place). */
+const risen = (page) => page.evaluate(() => [...document.querySelectorAll('#heading [data-line] > span')].map((line) => {
+  const edge = line.parentNode.getBoundingClientRect();
+  const box = line.getBoundingClientRect();
+  return Math.round((1 - (box.top - edge.top) / edge.height) * 100) / 100;
+}));
+
+test('a heading rises line by line as the page scrolls it up the screen, read as the same text, then is its own markup again', async () => {
   const { context, page } = await open('kinetic');
   await kinetic(page);
   await page.evaluate(() => {
@@ -674,14 +687,26 @@ test('a heading scrolled into view rises line by line, read as the same text, th
     return [heading.offsetHeight, heading.nextElementSibling.offsetTop];
   });
   const before = await layout();
-  await toward(page, 'heading');
+  // In the bottom fifth of the screen: its lines down, waiting.
+  await headingAt(page, 0.85);
   await page.waitForFunction(() => document.querySelectorAll('#heading [data-line]').length >= 2, null, { timeout: 5000 });
+  await page.waitForTimeout(200);
+  assert.ok((await risen(page)).every((r) => r <= 0.05), `down (${await risen(page)})`);
   assert.equal(await page.evaluate(() => document.querySelector('#heading').textContent === window.text), true);
   assert.deepEqual(await layout(), before, 'nothing moves while it rises');
-  await page.waitForFunction(() => !document.querySelector('#heading [data-line]'), null, { timeout: 5000 });
-  assert.deepEqual(await layout(), before, 'nor after');
+  // Part of the way up: part of the way risen, the first line furthest; still while the page is.
+  await headingAt(page, 0.6);
+  await page.waitForTimeout(200);
+  const part = await risen(page);
+  assert.ok(part[0] > 0.2 && part[0] < 1 && part[0] >= part.at(-1), `part of the way, in turn (${part})`);
+  await page.waitForTimeout(500);
+  assert.deepEqual(await risen(page), part, 'it waits for the page to scroll');
+  // Above the middle: risen, and the heading's own markup again.
+  await headingAt(page, 0.4);
+  await page.waitForFunction(() => !document.querySelector('#heading [data-line]'), null, { timeout: 3000 });
   assert.equal(await page.evaluate(() => document.querySelector('#heading em') === window.em), true);
   assert.equal(await page.evaluate(() => document.querySelector('#heading').textContent === window.text), true);
+  assert.deepEqual(await layout(), before, 'nor after');
   await context.close();
 });
 
