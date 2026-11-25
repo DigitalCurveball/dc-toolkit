@@ -744,3 +744,221 @@ test('dc-qa passes kinetic type, with the band\'s pause control', async () => {
   assert.deepEqual(result.problems, []);
   assert.deepEqual(result.effects.map((e) => e.loops), [false, true]);
 });
+
+// Photos that open as they arrive (reveal.js), from fixtures/motion/reveal.html: a photo on the
+// first screen (#first), then two more, each over a screen below the last: #centre, with a corner
+// radius, opening from its centre, and #left, loading lazily, wiping from its left.
+
+const photo = (page, id) => page.evaluate((id) => {
+  const el = document.getElementById(id);
+  return { clip: getComputedStyle(el).clipPath, scale: new DOMMatrix(getComputedStyle(el.querySelector('img')).transform).a, inline: el.getAttribute('style') ?? '' };
+}, id);
+/** Scrolls so that the photo's top is `share` of the way down the screen. */
+const photoAt = (page, id, share) => page.evaluate(([id, share]) => scrollBy(0, document.getElementById(id).getBoundingClientRect().top - innerHeight * share), [id, share]);
+const started = (page, id) => page.waitForFunction((id) => window.dcMotion?.instances().find((i) => i.element.id === id)?.state === 'running', id, { timeout: 10000 });
+const caughtUp = (page) => page.waitForTimeout(1000); // the opening's trailing, several times over
+const insets = (clip) => (clip.match(/inset\(([^)]*?)(?: round|\))/)?.[1] ?? '').split(/\s+/).map(parseFloat);
+
+test('a photo below the screen opens as the page scrolls it up, trailing the scroll, then is as it was, and never closes again', async () => {
+  const { context, page } = await open('reveal');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 3);
+  await photoAt(page, 'centre', 1.1);
+  await started(page, 'centre');
+  const closed = await photo(page, 'centre');
+  assert.equal(closed.clip, 'inset(50% round 34px)', 'closed, its own 10px corner and the window\'s 24');
+  assert.ok(Math.abs(closed.scale - 1.15) < 0.001, `enlarged (${closed.scale})`);
+  await photoAt(page, 'centre', 0.75);
+  await caughtUp(page);
+  const partway = await photo(page, 'centre');
+  const [inset] = insets(partway.clip);
+  assert.ok(inset > 5 && inset < 45, `partway open (${partway.clip})`);
+  assert.ok(partway.scale > 1 && partway.scale < 1.15, `settling (${partway.scale})`);
+  await photoAt(page, 'centre', 0.1);
+  await caughtUp(page);
+  const shown = await photo(page, 'centre');
+  assert.equal(shown.clip, 'none');
+  assert.equal(shown.scale, 1);
+  assert.doesNotMatch(shown.inline, /clip-path|will-change/);
+  await photoAt(page, 'centre', 1.2);
+  await caughtUp(page);
+  assert.equal((await photo(page, 'centre')).clip, 'none');
+  await context.close();
+});
+
+test('a photo on the screen when the page opens stays as it is', async () => {
+  const { context, page } = await open('reveal');
+  await started(page, 'first');
+  await page.evaluate(() => scrollBy(0, 300));
+  await caughtUp(page);
+  const first = await photo(page, 'first');
+  assert.equal(first.clip, 'none');
+  assert.equal(first.scale, 1);
+  await context.close();
+});
+
+test('a photo still loading is asked to load, and waits, closed, until it has', async () => {
+  let asked = 0;
+  const { context, page } = await open('reveal', {}, (context) => context.route('**/ripple-photo.png', async (route) => {
+    asked++;
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    await route.continue();
+  }));
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 3);
+  await photoAt(page, 'left', 1.1);
+  await started(page, 'left');
+  await photoAt(page, 'left', 0.1);
+  await page.waitForTimeout(800);
+  assert.ok(asked > 0, 'asked for');
+  const waiting = await photo(page, 'left');
+  assert.deepEqual(insets(waiting.clip), [0, 100, 0, 0], `closed, a wipe from the left (${waiting.clip})`);
+  await page.waitForFunction(() => document.querySelector('#left img').complete, null, { timeout: 5000 });
+  await caughtUp(page);
+  assert.equal((await photo(page, 'left')).clip, 'none');
+  await context.close();
+});
+
+test('without scripts, under reduced motion, or with motion paused, every photo is as it is', async () => {
+  for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }]) {
+    const { context, page } = await open('reveal', options);
+    await page.waitForTimeout(1200);
+    for (const id of ['centre', 'left']) {
+      await photoAt(page, id, 1.05);
+      await page.waitForTimeout(400);
+      assert.equal((await photo(page, id)).clip, 'none', `${id}, ${JSON.stringify(options)}`);
+    }
+    await context.close();
+  }
+  const { context, page } = await open('reveal');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 3);
+  await photoAt(page, 'centre', 1.1);
+  await started(page, 'centre');
+  await photoAt(page, 'centre', 0.75);
+  await page.waitForTimeout(300);
+  assert.notEqual((await photo(page, 'centre')).clip, 'none', 'opening');
+  await page.evaluate(() => window.dcMotion.pause());
+  await page.waitForTimeout(200);
+  assert.equal((await photo(page, 'centre')).clip, 'none', 'opened at once by the pause control');
+  await photoAt(page, 'left', 1.1);
+  await started(page, 'left');
+  assert.equal((await photo(page, 'left')).clip, 'none', 'never closed while paused');
+  await context.close();
+});
+
+test('dc-qa passes the opening photos, which need no pause control', async () => {
+  const result = await checkMotion(browser, fixture('reveal'));
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false]);
+});
+
+// Sections that stack (stack.js and stack.css), from fixtures/motion/stack.html: four cards, below
+// 700px of page, the second (#tall) taller than the screen, the first and the last with a link.
+
+const cards = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.dc-stack-card')].map((card) => {
+  const box = card.getBoundingClientRect();
+  const style = getComputedStyle(card);
+  return [card.id, { top: Math.round(box.top), bottom: Math.round(box.bottom), scale: Number(new DOMMatrix(style.transform).a.toFixed(3)), position: style.position }];
+})));
+/** Scrolls so that card `i`, wherever it pins, would have its top at `y` on the screen with nothing pinned. */
+const cardFlowAt = (page, i, y) => page.evaluate(([i, y]) => {
+  const stack = document.getElementById('stack');
+  const gap = parseFloat(getComputedStyle(stack).rowGap) || 0;
+  const all = [...stack.children];
+  let top = stack.getBoundingClientRect().top + scrollY;
+  for (const card of all.slice(0, i)) top += card.offsetHeight + gap;
+  scrollTo(0, top - y);
+}, [i, y]);
+const stacked = (page) => page.waitForTimeout(300);
+
+test('on a laptop the cards pin one after another, a peek lower each, and the ones beneath shrink', async () => {
+  const { context, page } = await open('stack');
+  await cardFlowAt(page, 0, 300);
+  await started(page, 'stack');
+  await cardFlowAt(page, 2, 20); // the third card just pinned, a peek or two below its top
+  await stacked(page);
+  const { one, tall, three, four } = await cards(page);
+  assert.equal(one.position, 'sticky');
+  assert.equal(one.top, 0);
+  assert.equal(three.top, 24, 'two peeks lower');
+  assert.ok(four.top > three.top + 300, 'the last still to come');
+  assert.equal(one.scale, 0.9, 'two cards over it');
+  assert.equal(tall.scale, 0.95, 'one card over it');
+  assert.equal(three.scale, 1);
+  await context.close();
+});
+
+test('a card taller than the screen pins by its foot, so its last line is on the screen before the next covers it', async () => {
+  const { context, page } = await open('stack');
+  await cardFlowAt(page, 0, 300);
+  await started(page, 'stack');
+  await cardFlowAt(page, 2, 790); // the third card just coming onto the screen
+  await stacked(page);
+  const { tall, three } = await cards(page);
+  assert.ok(tall.top < 0, 'pinned above the screen');
+  assert.equal(tall.bottom, 788, 'by its foot, a peek above the screen\'s');
+  const line = await page.evaluate(() => document.getElementById('tall-last').getBoundingClientRect());
+  assert.ok(line.top >= 0 && line.bottom <= three.top, 'its last line on the screen, uncovered');
+  await context.close();
+});
+
+test('tabbing back into a covered card scrolls to where it is uncovered', async () => {
+  const { context, page } = await open('stack');
+  await cardFlowAt(page, 0, 300);
+  await started(page, 'stack');
+  await page.focus('#link-four');
+  await cardFlowAt(page, 3, -50); // every card stacked, the last pinned
+  await stacked(page);
+  await page.keyboard.press('Shift+Tab');
+  await stacked(page);
+  const seen = await page.evaluate(() => {
+    const link = document.getElementById('link-one');
+    const box = link.getBoundingClientRect();
+    return document.activeElement === link && box.top >= 0 && box.bottom <= innerHeight && document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === link;
+  });
+  assert.ok(seen, 'the focused link is on the screen and on top');
+  await context.close();
+});
+
+test('without scripts, or under reduced motion, the cards are one after another, none covering another', async () => {
+  for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }]) {
+    const { context, page } = await open('stack', options);
+    await page.waitForTimeout(1200);
+    for (const i of [1, 2, 3]) {
+      await cardFlowAt(page, i, 100);
+      await page.waitForTimeout(200);
+      const all = Object.values(await cards(page));
+      assert.ok(all.every((card) => card.position === 'static' && card.scale === 1), JSON.stringify(options));
+      all.slice(1).forEach((card, k) => assert.ok(card.top >= all[k].bottom, `card ${k + 2} below card ${k + 1}, ${JSON.stringify(options)}`));
+    }
+    await context.close();
+  }
+});
+
+test('the pause control leaves the stack be: it moves only as the visitor scrolls', async () => {
+  const { context, page } = await open('stack');
+  await cardFlowAt(page, 0, 300);
+  await started(page, 'stack');
+  await page.evaluate(() => window.dcMotion.pause());
+  await cardFlowAt(page, 2, 20);
+  await stacked(page);
+  assert.equal((await cards(page)).one.scale, 0.9);
+  await context.close();
+});
+
+test('the stack shifts nothing when its script starts, even on the first screen', async () => {
+  const { context, page } = await open('stack', {}, (context) => context.addInitScript(() => {
+    window.shifts = 0;
+    new PerformanceObserver((list) => { for (const entry of list.getEntries()) window.shifts += entry.value; }).observe({ type: 'layout-shift', buffered: true });
+  }));
+  await page.evaluate(() => scrollTo(0, 900)); // into the stack, before the script starts
+  await started(page, 'stack');
+  await stacked(page);
+  assert.equal(await page.evaluate(() => window.shifts), 0);
+  await context.close();
+});
+
+test('dc-qa passes the stack, measuring each card\'s text where it is seen', async () => {
+  const result = await checkMotion(browser, fixture('stack'));
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false]);
+  assert.ok(result.contrast.some((c) => c.text.startsWith('Fanlight')), 'the last card measured');
+});

@@ -1,0 +1,42 @@
+---
+// Photos that open as they arrive (reveal.js), around the photo they open:
+//
+//   <Reveal class="gallery-photo" from="left" enabled={gallery.motion}><Image src={photo.src} alt={photo.alt} /></Reveal>
+//
+// The photo inside, an <img> or Astro's <Image>, is the still: it shows without scripts, under
+// reduced motion, wherever it was on the screen when the page opened, and once it has opened, with
+// nothing of the effect left on it. A corner radius goes on this element, which the opening window
+// keeps. It needs no MotionToggle. `enabled` is the editor's on/off: off, the photo stays as it is
+// and nothing runs. Any other attribute goes on the element.
+
+import './motion.css';
+
+interface Props {
+  /** Where it opens from: 'centre', a window growing to its edges (the default), or a wipe from 'left', 'right' or 'top'. */
+  from?: 'centre' | 'left' | 'right' | 'top';
+  /** How much larger the photo is as it begins to open, settling to its true size: 0.15 by default, 0 for none. */
+  zoom?: number;
+  /** The editor's on/off for the effect: off shows the photo itself. */
+  enabled?: boolean;
+  /** The element to render, `div` by default. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { from, zoom, enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+const options = JSON.stringify({ from, zoom });
+---
+
+<Element
+  {...attributes}
+  class:list={['dc-motion', className]}
+  data-motion={enabled ? 'reveal' : undefined}
+  data-motion-options={enabled ? options : undefined}
+><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ reveal: () => import('./reveal.js') });
+</script>

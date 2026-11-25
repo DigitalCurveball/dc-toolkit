@@ -5,7 +5,7 @@
 //
 // - **A still without scripts**: every effect's element paints something of its own (a background
 //   image or colour, or an image inside it) when no script runs; a type effect (scramble, band)
-//   has its text.
+//   has its text, and a stack its cards.
 // - **The still under reduced motion**: no effect starts, and nothing is drawn over the still.
 // - **Each effect starts**, once scrolled to: it loads, and runs. One that can't run in this browser
 //   (no WebGL) is noted, not failed, since its still is what shows.
@@ -15,7 +15,8 @@
 //   measured against what is behind it, pixel by pixel, at the still and at moments across the
 //   effect's movement, with the text itself made transparent. The darkest and lightest of what is
 //   behind it (ignoring the extreme 2%, the grain) must both reach 4.5:1, or 3:1 for large text
-//   (24px, or 18.66px bold), the thresholds axe uses.
+//   (24px, or 18.66px bold), the thresholds axe uses. A stacked card's text is measured only
+//   where no other card covers it.
 
 // Moments across the movement, in seconds: past a whole drift of the slowest field.
 export const MOMENTS = [0, 4, 8, 13, 19, 26, 34, 43];
@@ -98,8 +99,9 @@ async function settle(page) {
 }
 
 function missingStills() {
-  // The type effects' still is their own text (kinetic type, dc-pipeline #54).
-  const text = new Set(['scramble', 'band']);
+  // The still of these is their own content: kinetic type's text (dc-pipeline #54), and the
+  // stack's cards (#55).
+  const text = new Set(['scramble', 'band', 'stack']);
   return [...document.querySelectorAll('[data-motion]')].filter((el) => {
     if (text.has(el.dataset.motion) && el.textContent.trim()) return false;
     const style = getComputedStyle(el);
@@ -197,7 +199,13 @@ async function measureText(page, moments) {
         if (!rects.length) return null;
         const left = Math.min(...rects.map((r) => r.left));
         const top = Math.min(...rects.map((r) => r.top));
-        return { x: left, y: top, width: Math.max(...rects.map((r) => r.right)) - left, height: Math.max(...rects.map((r) => r.bottom)) - top };
+        const width = Math.max(...rects.map((r) => r.right)) - left;
+        const height = Math.max(...rects.map((r) => r.bottom)) - top;
+        // A stacked card under another (stack.js) isn't seen here, and is measured where it is.
+        const card = node.closest('.dc-stack-card');
+        const over = card && document.elementFromPoint(left + width / 2, top + height / 2);
+        if (over && !card.contains(over)) return null;
+        return { x: left, y: top, width, height };
       });
       const clip = box && inView(box);
       if (!clip) continue;

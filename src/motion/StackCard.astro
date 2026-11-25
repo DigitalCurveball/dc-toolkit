@@ -1,0 +1,15 @@
+---
+// One card of a Stack, with a background of its own from the site's CSS. Any attribute goes on
+// the element.
+
+interface Props {
+  /** The element to render, `div` by default: `article` for a project, `section` for a section. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { as: Element = 'div', class: className, ...attributes } = Astro.props;
+---
+
+<Element {...attributes} class:list={['dc-stack-card', className]}><slot /></Element>

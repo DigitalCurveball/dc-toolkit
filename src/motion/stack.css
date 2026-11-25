@@ -1,0 +1,40 @@
+/* Sections that stack like cards (stack.js; its markup in Stack.astro's comment): cards inside
+   .dc-stack, each a .dc-stack-card with a background of its own, the page's Canvas colour until
+   the site gives it one.
+
+   Its still, without scripts, under reduced motion and where the editor switched it off, is the
+   cards one after another. Where motion is allowed and scripts run, each card pins with CSS's own
+   `position: sticky` as it reaches the top of the screen, a peek lower than the one before, up to
+   the sixth, so the next slides up over it; stack.js shrinks the ones beneath, from their top
+   edges, which the peek shows. A card taller than the screen pins by its foot instead, a peek
+   above the screen's (its height from stack.js). The layout is CSS's from the first paint, so
+   nothing shifts when the script starts. In it, every card is at least --dc-stack-min tall, so a
+   taller one beneath doesn't show below a shorter one over it.
+
+   On .dc-stack, a site may set --dc-stack-top, the height of a sticky header the cards pin below
+   (0px); --dc-stack-peek, how much of each card shows above the next (12px); --dc-stack-gap,
+   between the cards (24px); --dc-stack-shrink, how much smaller a card is for each card over it
+   (0.05, up to four); and --dc-stack-min, the cards' least height (min(80svh, 640px); auto for
+   none). A sticky card's ancestors must not clip their overflow (`overflow: hidden`), or it
+   doesn't pin. */
+
+:where(.dc-stack) { --dc-stack-top: 0px; --dc-stack-peek: 12px; --dc-stack-gap: 24px; --dc-stack-shrink: 0.05; --dc-stack-min: min(80svh, 640px); display: flex; flex-direction: column; gap: var(--dc-stack-gap); }
+:where(.dc-stack-card) { background: Canvas; }
+
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .dc-stack[data-motion]:not([data-motion-state='failed']) {
+    & > .dc-stack-card {
+      position: sticky;
+      top: min(var(--dc-stack-top) + var(--dc-stack-index, 0) * var(--dc-stack-peek), 100svh - var(--dc-stack-height, 0px) - var(--dc-stack-peek));
+      min-height: var(--dc-stack-min);
+      transform-origin: 50% 0;
+      transform: scale(calc(1 - min(var(--dc-stack-depth, 0), 4) * var(--dc-stack-shrink)));
+      will-change: transform;
+    }
+    & > .dc-stack-card:nth-child(2) { --dc-stack-index: 1; }
+    & > .dc-stack-card:nth-child(3) { --dc-stack-index: 2; }
+    & > .dc-stack-card:nth-child(4) { --dc-stack-index: 3; }
+    & > .dc-stack-card:nth-child(5) { --dc-stack-index: 4; }
+    & > .dc-stack-card:nth-child(n + 6) { --dc-stack-index: 5; }
+  }
+}

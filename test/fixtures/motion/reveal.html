@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photos that open as they arrive</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; color: #111; background: #fff; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+  .photo img { display: block; width: 100%; height: auto; }
+  .gap { height: 1200px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="dc-motion photo" id="first" data-motion="reveal"><img src="ripple-photo.svg" alt="Stripes, a red circle and a green band" width="600" height="400"></div>
+<div class="gap"><p>Between the photos.</p></div>
+<div class="dc-motion photo" id="centre" data-motion="reveal" style="border-radius: 10px"><img src="ripple-photo-2.svg" alt="Yellow dots on black, a blue panel" width="600" height="400"></div>
+<div class="gap"></div>
+<div class="dc-motion photo" id="left" data-motion="reveal" data-motion-options='{"from":"left"}'><img src="ripple-photo.png" alt="Stripes again, as a raster" width="600" height="400" loading="lazy"></div>
+<div class="gap"><p>The rest of the page.</p></div>
+</div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ reveal: () => import('/src/motion/reveal.js') });
+</script>
+</body>
+</html>
