@@ -317,7 +317,8 @@ test('dc-qa passes the particle logo, which plays once and needs no pause contro
 
 test('two effects registered by their own scripts, as two components write them, both start', async () => {
   const { context, page } = await open('two-effects');
-  await page.waitForFunction(() => window.dcMotion?.instances().every((i) => i.state === 'running'), null, { timeout: 10000 }).catch(() => {});
+  // Both found and both running: before the runtime has found any, "every" is true of none.
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 2 && window.dcMotion.instances().every((i) => i.state === 'running'), null, { timeout: 10000 }).catch(() => {});
   assert.deepEqual(await states(page), ['running', 'running']);
   await context.close();
 });
