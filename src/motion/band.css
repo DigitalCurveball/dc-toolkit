@@ -1,0 +1,16 @@
+/* The scrolling band (band.js; its markup in Band.astro's comment): display type drifting
+   sideways. Its still, without scripts or under reduced motion, is the text as written, wrapping
+   as any paragraph does. Where motion is allowed and scripts run, it is one row from the first
+   paint, the rest cut off at the edge, so nothing shifts when the script starts and fills the row
+   with copies; until then, it stands still. A site sets the space between copies with
+   --dc-band-gap (0.5em). */
+
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .dc-band[data-motion]:not([data-motion-state='failed']) {
+    white-space: nowrap;
+    overflow: hidden;
+
+    & .dc-band-text { display: inline; margin: 0; }
+    & .dc-band-track { display: inline-flex; align-items: baseline; gap: var(--dc-band-gap, 0.5em); will-change: transform; }
+  }
+}

@@ -192,6 +192,8 @@ function kit(record) {
     options,
     /** Whether the element was on the screen when the page opened (when the effects began), not scrolled to since. */
     opening: record.opening,
+    /** Whether the visitor has paused motion: an effect that would hide something until it plays shows it at once. */
+    paused: () => paused,
     /** A layer over the still and behind the content, hidden from assistive technology. */
     layer(tag = 'canvas') {
       const layer = document.createElement(tag);
