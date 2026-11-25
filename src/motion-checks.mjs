@@ -4,7 +4,8 @@
 // docs/motion.md, "The bar"; facts.md, "WCAG on moving content").
 //
 // - **A still without scripts**: every effect's element paints something of its own (a background
-//   image or colour, or an image inside it) when no script runs.
+//   image or colour, or an image inside it) when no script runs; a type effect (reveal, scramble,
+//   band) has its text.
 // - **The still under reduced motion**: no effect starts, and nothing is drawn over the still.
 // - **Each effect starts**, once scrolled to: it loads, and runs. One that can't run in this browser
 //   (no WebGL) is noted, not failed, since its still is what shows.
@@ -54,6 +55,9 @@ export async function checkMotion(browser, target) {
       else if (!['running', 'paused', 'idle'].includes(state)) problems.push(`${name} did not start (${state}${reason ? `, ${reason}` : ''})`);
     }
     if (effects.some((e) => e.loops && e.state === 'running')) problems.push(...(await checkToggle(page)));
+    // The pause control's check left the mouse on it, and a control that changes colour under the
+    // mouse would be measured in one colour over the other's background.
+    await page.mouse.move(0, 0);
     await page.evaluate(() => window.dcMotion.pause());
     const contrast = await measureText(page, MOMENTS);
     return { effects, contrast };
@@ -94,7 +98,10 @@ async function settle(page) {
 }
 
 function missingStills() {
+  // The type effects' still is their own text (kinetic type, dc-pipeline #54).
+  const text = new Set(['reveal', 'scramble', 'band']);
   return [...document.querySelectorAll('[data-motion]')].filter((el) => {
+    if (text.has(el.dataset.motion) && el.textContent.trim()) return false;
     const style = getComputedStyle(el);
     const colour = style.backgroundColor.match(/[\d.]+/g)?.map(Number) ?? [];
     const opaque = colour.length === 3 || (colour.length === 4 && colour[3] > 0);
@@ -176,6 +183,7 @@ async function measureText(page, moments) {
     if (moment !== 'still') await page.evaluate((t) => window.dcMotion.seek(t), moment);
     for (const text of texts) {
       const el = page.locator(`[data-dc-contrast="${text.i}"]`);
+      if (!(await el.count())) continue; // an effect put back its own markup, which is measured as itself
       await el.scrollIntoViewIfNeeded();
       if (moment !== 'still') await page.evaluate((t) => window.dcMotion.seek(t), moment); // scrolling may have redrawn
       // The text's own line boxes, not the element's: a button's border and the corners outside
