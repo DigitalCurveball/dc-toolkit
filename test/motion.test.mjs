@@ -1054,3 +1054,122 @@ test('dc-qa passes the stack, measuring each card\'s text where it is seen', asy
   assert.ok(result.contrast.some((c) => c.text.startsWith('Fanlight')), 'the last card measured');
 });
 
+
+// Count-ups, a magnetic button and a spotlight (count.js, magnet.js, spotlight.js), from
+// fixtures/motion/numbers.html: a figure on the first screen (#opening), then a screen down a dark
+// section (#spot) lit by the spotlight, with two cards (#card first) whose prices count up (#price
+// first), and a magnetic button (#magnet).
+
+const numbers = (page) => page.waitForFunction(() => window.dcMotion?.instances().length === 5, null, { timeout: 10000 });
+const leanOf = (page) => page.evaluate(() => new DOMMatrix(getComputedStyle(document.getElementById('magnet')).transform));
+const lit = (page) => page.evaluate(() => document.getElementById('spot').style.getPropertyValue('--dc-spotlight-on'));
+
+test('a number counts up from zero when half of it is on the screen, in its own width, then is as written', async () => {
+  const { context, page } = await open('numbers');
+  await numbers(page);
+  const width = await page.evaluate(() => document.getElementById('price').offsetWidth);
+  await toward(page, 'price');
+  await page.waitForFunction(() => document.querySelector('#price [aria-hidden="true"]'), null, { timeout: 5000 });
+  const seen = [];
+  for (let i = 0; i < 6; i++) {
+    const now = await page.evaluate(() => ({
+      shown: document.querySelector('#price [aria-hidden="true"]')?.textContent,
+      read: [...document.querySelectorAll('#price span')].find((el) => !el.closest('[aria-hidden="true"]'))?.textContent,
+      width: document.getElementById('price').offsetWidth,
+    }));
+    if (now.shown === undefined) break;
+    seen.push(Number(now.shown.replace(/[$,]/g, '')));
+    assert.equal(now.read, '$1,500', 'screen readers have the number throughout');
+    assert.equal(now.width, width, 'in its own width');
+    await page.waitForTimeout(150);
+  }
+  assert.ok(seen[0] < 1500 && seen.every((n, i) => i === 0 || n >= seen[i - 1]), `it counts up: ${seen}`);
+  await page.waitForTimeout(1800);
+  assert.equal(await page.evaluate(() => document.getElementById('price').innerHTML), '$1,500');
+  await context.close();
+});
+
+test('a number on the screen when the page opens, or any while motion is paused, is as written', async () => {
+  const { context, page } = await open('numbers');
+  await numbers(page);
+  await page.evaluate(() => window.dcMotion.pause());
+  await toward(page, 'price');
+  await page.waitForTimeout(600);
+  assert.equal(await page.evaluate(() => document.getElementById('opening').innerHTML), '98%');
+  assert.equal(await page.locator('#price [aria-hidden="true"]').count(), 0);
+  await context.close();
+});
+
+test('a magnetic button leans toward a mouse that comes near, no more than 10px, and springs back when it leaves', async () => {
+  const { context, page } = await open('numbers');
+  await numbers(page);
+  await toward(page, 'magnet');
+  await started(page, 'magnet');
+  const box = await page.locator('#magnet').boundingBox();
+  await page.mouse.move(box.x + box.width + 10, box.y + box.height / 2, { steps: 4 });
+  await page.waitForTimeout(600);
+  const lean = await leanOf(page);
+  assert.ok(lean.m41 > 2 && lean.m41 <= 10 && Math.abs(lean.m42) < 2, `toward the cursor, at the right: ${lean.m41.toFixed(1)}, ${lean.m42.toFixed(1)}`);
+  await page.mouse.move(5, 5, { steps: 4 });
+  await page.waitForTimeout(1200);
+  assert.equal((await leanOf(page)).m41, 0, 'back in place');
+  await context.close();
+});
+
+test('on a phone a magnetic button stays put, and a tap lights the spotlight for a moment', async () => {
+  const { context, page } = await open('numbers', { hasTouch: true });
+  await numbers(page);
+  await toward(page, 'magnet');
+  await started(page, 'spot');
+  const box = await page.locator('#card').boundingBox();
+  await page.touchscreen.tap(box.x + 40, box.y + 40);
+  await page.waitForTimeout(250);
+  assert.ok(Number(await lit(page)) > 0.5, 'lit where the finger landed');
+  assert.equal((await leanOf(page)).m41, 0, 'the button stays put');
+  await page.waitForTimeout(2500);
+  assert.equal(await lit(page), '', 'out again');
+  await context.close();
+});
+
+test('the spotlight follows a mouse across the section and goes out when it leaves, or while motion is paused', async () => {
+  const { context, page } = await open('numbers');
+  await numbers(page);
+  await toward(page, 'spot');
+  await started(page, 'spot');
+  const box = await page.locator('#card').boundingBox();
+  await page.mouse.move(box.x + 60, box.y + 50, { steps: 4 });
+  await page.waitForTimeout(600);
+  assert.ok(Number(await lit(page)) > 0.95, 'lit');
+  const at = await page.evaluate(() => {
+    const spot = document.getElementById('spot');
+    const area = spot.getBoundingClientRect();
+    const card = document.getElementById('card').getBoundingClientRect();
+    return { x: parseFloat(spot.style.getPropertyValue('--dc-spotlight-x')) - (card.left - area.left), left: document.getElementById('card').style.getPropertyValue('--dc-spotlight-left') };
+  });
+  assert.ok(Math.abs(at.x - 60) < 2 && at.left, `on the card where the cursor is (${at.x.toFixed(1)}px in)`);
+  await page.evaluate(() => window.dcMotion.pause());
+  await page.mouse.move(box.x + 80, box.y + 60, { steps: 2 });
+  await page.waitForTimeout(1500);
+  assert.equal(await lit(page), '', 'out while paused');
+  await context.close();
+});
+
+test('under reduced motion nothing counts, leans or lights', async () => {
+  const { context, page } = await open('numbers', { reducedMotion: 'reduce' });
+  await page.waitForTimeout(1200);
+  await toward(page, 'magnet');
+  const box = await page.locator('#magnet').boundingBox();
+  await page.mouse.move(box.x + box.width + 20, box.y + box.height / 2, { steps: 4 });
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('#price [aria-hidden="true"]').count(), 0);
+  assert.equal((await leanOf(page)).m41, 0);
+  assert.equal(await lit(page), '');
+  await context.close();
+});
+
+test('dc-qa passes the count-ups, the magnetic button and the spotlight, measuring the text with the light behind it', async () => {
+  const result = await checkMotion(browser, fixture('numbers'));
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false, false, false]);
+  assert.ok(result.contrast.some((c) => c.text === 'Presence'), 'a card measured');
+});

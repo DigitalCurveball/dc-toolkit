@@ -5,7 +5,7 @@
 //
 // - **A still without scripts**: every effect's element paints something of its own (a background
 //   image or colour, or an image inside it) when no script runs; a type effect (scramble, band)
-//   has its text, and a stack its cards.
+//   has its text, a stack its cards, a count-up its number and a magnetic button itself.
 // - **The still under reduced motion**: no effect starts, and nothing is drawn over the still.
 // - **Each effect starts**, once scrolled to: it loads, and runs. One that can't run in this browser
 //   (no WebGL) is noted, not failed, since its still is what shows.
@@ -16,7 +16,8 @@
 //   effect's movement, with the text itself made transparent. The darkest and lightest of what is
 //   behind it (ignoring the extreme 2%, the grain) must both reach 4.5:1, or 3:1 for large text
 //   (24px, or 18.66px bold), the thresholds axe uses. A stacked card's text is measured only
-//   where no other card covers it.
+//   where no other card covers it, and text in a spotlight's section with the light placed behind
+//   it, at its brightest, since a check can't move a cursor (dc-pipeline #57).
 
 // Moments across the movement, in seconds: past a whole drift of the slowest field.
 export const MOMENTS = [0, 4, 8, 13, 19, 26, 34, 43];
@@ -99,9 +100,9 @@ async function settle(page) {
 }
 
 function missingStills() {
-  // The still of these is their own content: kinetic type's text (dc-pipeline #54), and the
-  // stack's cards (#55).
-  const text = new Set(['scramble', 'band', 'stack']);
+  // The still of these is their own content: kinetic type's text (dc-pipeline #54), the stack's
+  // cards (#55), and a count-up's number and a magnetic button (#57).
+  const text = new Set(['scramble', 'band', 'stack', 'count', 'magnet']);
   return [...document.querySelectorAll('[data-motion]')].filter((el) => {
     if (text.has(el.dataset.motion) && el.textContent.trim()) return false;
     const style = getComputedStyle(el);
@@ -190,7 +191,7 @@ async function measureText(page, moments) {
       if (moment !== 'still') await page.evaluate((t) => window.dcMotion.seek(t), moment); // scrolling may have redrawn
       // The text's own line boxes, not the element's: a button's border and the corners outside
       // its radius are not behind its words.
-      const box = await el.evaluate((node) => {
+      const box = await el.evaluate((node, lit) => {
         const rects = [...node.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()).flatMap((n) => {
           const range = document.createRange();
           range.selectNodeContents(n);
@@ -205,8 +206,16 @@ async function measureText(page, moments) {
         const card = node.closest('.dc-stack-card');
         const over = card && document.elementFromPoint(left + width / 2, top + height / 2);
         if (over && !card.contains(over)) return null;
+        // A spotlight's light, placed behind the text at its brightest (spotlight.js).
+        const spot = lit && node.closest('[data-motion="spotlight"]');
+        if (spot) {
+          const area = spot.getBoundingClientRect();
+          spot.style.setProperty('--dc-spotlight-on', '1');
+          spot.style.setProperty('--dc-spotlight-x', `${left + width / 2 - area.left}px`);
+          spot.style.setProperty('--dc-spotlight-y', `${top + height / 2 - area.top}px`);
+        }
         return { x: left, y: top, width, height };
-      });
+      }, moment !== 'still');
       const clip = box && inView(box);
       if (!clip) continue;
       const shot = await page.screenshot({ clip, animations: 'disabled', caret: 'hide' });

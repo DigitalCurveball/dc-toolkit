@@ -1,0 +1,32 @@
+---
+// A magnetic button (magnet.js), around a button or a link styled as one:
+//
+//   <Magnet><a class="button" href="/contact/"><span data-magnet-label>Book a call</span></a></Magnet>
+//
+// It leans toward a mouse or pen that comes near and springs back; a label marked
+// `data-magnet-label` leans a little further. Nothing on a phone, for keyboard focus, under reduced
+// motion or while motion is paused. Its still is the button as it is. It needs no MotionToggle.
+// Any other attribute goes on the element, an inline-block `span` by default.
+
+import './motion.css';
+
+interface Props {
+  /** The element to render, `span` by default. */
+  as?: string;
+  /** The editor's on/off: off, the button stays put. */
+  enabled?: boolean;
+  class?: string;
+  style?: string;
+  [attribute: string]: unknown;
+}
+
+const { as: Element = 'span', enabled = true, class: className, style, ...attributes } = Astro.props;
+---
+
+<Element {...attributes} class:list={['dc-motion', className]} style={['display: inline-block', style].filter(Boolean).join('; ')} data-motion={enabled ? 'magnet' : undefined}><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ magnet: () => import('./magnet.js') });
+</script>
