@@ -1,0 +1,49 @@
+---
+// A scrolling band of display type (band.js, band.css): the words drift sideways in one row,
+// faster for a moment when the page scrolls.
+//
+//   <Band class="band" enabled={section.motion}>Websites without the guesswork.</Band>
+//   <MotionToggle />
+//
+// The markup it writes, the same in a concept, which links motion/band.css beside motion.css:
+//
+//   <div class="dc-motion dc-band" data-motion="band"><p class="dc-band-text">…</p></div>
+//
+// It moves by itself, so the page needs a MotionToggle, beside the band (WCAG 2.2.2). Its still,
+// without scripts, under reduced motion and where `enabled` is off, is the words as a paragraph.
+// Any other attribute goes on the element.
+
+import './motion.css';
+import './band.css';
+
+interface Props {
+  /** 1 by default, about 80 CSS pixels a second; 0.5 is half as fast. */
+  speed?: number;
+  /** 'left' by default, or 'right'. */
+  direction?: 'left' | 'right';
+  /** What stands between the copies, '·' by default; '' for none. */
+  separator?: string;
+  /** The editor's on/off: off, the words stand still. */
+  enabled?: boolean;
+  /** The element to render, `div` by default. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { speed, direction, separator, enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+const options = JSON.stringify({ speed, direction, separator });
+---
+
+<Element
+  {...attributes}
+  class:list={['dc-motion', 'dc-band', className]}
+  data-motion={enabled ? 'band' : undefined}
+  data-motion-options={enabled ? options : undefined}
+><p class="dc-band-text"><slot /></p></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ band: () => import('./band.js') });
+</script>

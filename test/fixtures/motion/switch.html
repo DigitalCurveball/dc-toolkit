@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A switch for a group of effects</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<link rel="stylesheet" href="/src/motion/stack.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; color: #111; background: #fff; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+  .gap { height: 600px; }
+  .dc-stack { --dc-stack-min: 320px; }
+  .dc-stack-card { padding: 32px; border-radius: 16px; background: #eee; }
+  .dc-stack-card:nth-child(2) { background: #dde6f5; }
+  .price { font-size: 40px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<section id="group">
+  <button type="button" class="dc-motion-switch" id="switch" role="switch" aria-checked="true" aria-controls="group" hidden>Cards that stack</button>
+  <div class="dc-motion dc-stack" id="stack" data-motion="stack">
+    <article class="dc-stack-card" id="one"><h2>The Crew</h2><p class="price"><span class="dc-motion" id="price" data-motion="count" style="font-variant-numeric: tabular-nums">$270</span></p></article>
+    <article class="dc-stack-card" id="two"><h2>One-on-one</h2><p>Just you and me.</p></article>
+  </div>
+</section>
+<p>Outside the group: <span class="dc-motion" id="outside" data-motion="count" style="font-variant-numeric: tabular-nums">$90</span></p>
+<div class="gap" id="end"><p>The rest of the page.</p></div>
+</div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ stack: () => import('/src/motion/stack.js'), count: () => import('/src/motion/count.js') });
+</script>
+</body>
+</html>

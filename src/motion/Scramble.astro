@@ -1,0 +1,30 @@
+---
+// A short label whose letters scramble and settle as it scrolls in and on hover (scramble.js):
+//
+//   <Scramble as="p" class="eyebrow" enabled={section.motion}>Motion library</Scramble>
+//
+// Plain text of up to 60 characters: an eyebrow, a button's or a menu link's words, never body
+// text. Its still is the text as written; screen readers read it throughout. It plays once and
+// needs no MotionToggle. Any other attribute goes on the element.
+
+import './motion.css';
+
+interface Props {
+  /** The element to render, `span` by default. */
+  as?: string;
+  /** The editor's on/off: off, the label stays as written. */
+  enabled?: boolean;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { as: Element = 'span', enabled = true, class: className, ...attributes } = Astro.props;
+---
+
+<Element {...attributes} class:list={['dc-motion', className]} data-motion={enabled ? 'scramble' : undefined}><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ scramble: () => import('./scramble.js') });
+</script>

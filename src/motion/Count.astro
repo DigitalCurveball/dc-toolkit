@@ -1,0 +1,30 @@
+---
+// A number that counts up (count.js): `<Count>{stat.figure}</Count>`, plain text holding one number
+// in its own format ("$4,900", "98%", "120+"), only ever the client's own figure. Its still is the
+// number as written, which screen readers read throughout. Its figures are of equal width from the
+// first paint (`font-variant-numeric: tabular-nums`), so the count stays inside the number's width;
+// a concept writes the same style. It plays once and needs no MotionToggle. Any other attribute
+// goes on the element.
+
+import './motion.css';
+
+interface Props {
+  /** The element to render, `span` by default. */
+  as?: string;
+  /** The editor's on/off: off, the number stays as written. */
+  enabled?: boolean;
+  class?: string;
+  style?: string;
+  [attribute: string]: unknown;
+}
+
+const { as: Element = 'span', enabled = true, class: className, style, ...attributes } = Astro.props;
+---
+
+<Element {...attributes} class:list={['dc-motion', className]} style={['font-variant-numeric: tabular-nums', style].filter(Boolean).join('; ')} data-motion={enabled ? 'count' : undefined}><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ count: () => import('./count.js') });
+</script>

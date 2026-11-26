@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A pinned scroll story</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<link rel="stylesheet" href="/src/motion/story.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; color: #111; background: #fff; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  .gap { height: 700px; }
+  h2 { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="gap"><p>Above the story.</p></div>
+<section class="dc-motion dc-story" id="story" data-motion="story" style="--dc-story-steps: 4">
+<div class="dc-story-steps">
+  <div class="dc-story-step">
+    <figure class="dc-story-picture"><img src="ripple-photo.svg" alt="Stripes, a red circle and a green band" width="600" height="400"></figure>
+    <div class="dc-story-text"><h2>Scope the work</h2><p>A short call, then a written quote.</p></div>
+  </div>
+  <div class="dc-story-step">
+    <figure class="dc-story-picture"><img src="ripple-photo-2.svg" alt="Yellow dots on black, a blue panel" width="600" height="400"></figure>
+    <div class="dc-story-text"><h2>Design</h2><p>Questions about your business, then four directions.</p></div>
+  </div>
+  <div class="dc-story-step">
+    <figure class="dc-story-picture"><img src="particle-logo.svg" alt="A red square and a grey circle" width="600" height="400"></figure>
+    <div class="dc-story-text"><h2>Build</h2><p>The build, checked at every step.</p></div>
+  </div>
+  <div class="dc-story-step">
+    <figure class="dc-story-picture"><img src="ripple-photo.png" alt="Stripes again, as a raster" width="600" height="400"></figure>
+    <div class="dc-story-text"><h2>Launch and support</h2><p>Launch, then <a href="#end">care for the site</a>.</p></div>
+  </div>
+</div>
+</section>
+<div class="gap" id="end"><p>The rest of the page.</p></div>
+</div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ story: () => import('/src/motion/story.js') });
+</script>
+</body>
+</html>

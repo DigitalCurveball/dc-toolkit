@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Count-ups and a spotlight</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<link rel="stylesheet" href="/src/motion/spotlight.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; color: #111; background: #fff; }
+  .gap { height: 1200px; }
+  #spot { padding: 64px 32px; background: #141414; color: #fff; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 32px 0; }
+  .dc-spotlight-card { padding: 32px; border-radius: 12px; background: #1d1d1d; }
+  .price { font-size: 40px; font-weight: 700; margin: 8px 0 0; }
+  .button { display: inline-block; padding: 14px 24px; border-radius: 999px; background: #fff; color: #141414; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<p style="padding: 32px">A figure on the first screen: <span class="dc-motion" id="opening" data-motion="count" style="font-variant-numeric: tabular-nums">98%</span></p>
+<div class="gap"></div>
+<section class="dc-motion dc-spotlight" id="spot" data-motion="spotlight" style="--dc-spotlight-color: #D11F1F">
+  <h2>Our packages</h2>
+  <div class="cards">
+    <article class="dc-spotlight-card" id="card"><h3>Presence</h3><p class="price"><span class="dc-motion" id="price" data-motion="count" style="font-variant-numeric: tabular-nums">$1,500</span></p></article>
+    <article class="dc-spotlight-card"><h3>Practice</h3><p class="price"><span class="dc-motion" data-motion="count" style="font-variant-numeric: tabular-nums">$2,900</span></p></article>
+  </div>
+  <a class="button" id="button" href="#end">Book a call</a>
+</section>
+<div class="gap" id="end"><p>The rest of the page.</p></div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ count: () => import('/src/motion/count.js'), spotlight: () => import('/src/motion/spotlight.js') });
+</script>
+</body>
+</html>

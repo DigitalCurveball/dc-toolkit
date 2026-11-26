@@ -1,7 +1,7 @@
 {
   "name": "dc-toolkit",
-  "version": "0.11.0",
-  "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the port comparison and copy check, the brand files, the contact form's server side and robots.txt.",
+  "version": "0.12.0",
+  "description": "The code every Digital Curveball site runs unchanged: the Astro and Cloudflare setup, the quality gate, the port comparison and copy check, the brand files, the motion effects, the contact form's server side and robots.txt.",
   "license": "MIT",
   "type": "module",
   "repository": "github:DigitalCurveball/dc-toolkit",
@@ -23,6 +23,8 @@
     "./Copy.astro": "./src/Copy.astro",
     "./Banner.astro": "./src/Banner.astro",
     "./demo-form": "./src/demo-form.ts",
+    "./motion": "./src/motion/runtime.js",
+    "./motion/*": "./src/motion/*",
     "./paths": "./src/paths.ts",
     "./text": "./src/text.ts",
     "./routes/*": "./src/routes/*"

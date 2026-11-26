@@ -1,0 +1,50 @@
+---
+// Sections that stack like cards (stack.js, stack.css): cards that pin one after another as the
+// page scrolls, each sliding up over the last, the ones beneath shrinking a little.
+//
+//   <Stack enabled={work.motion}>
+//     {projects.map((project) => (
+//       <StackCard as="article" class="project-card">
+//         <Image src={project.screenshot.src} alt={project.screenshot.alt} />
+//         <h3><a href={project.url}>{project.name}</a></h3>
+//         <p>{project.summary}</p>
+//       </StackCard>
+//     ))}
+//   </Stack>
+//
+// The markup it writes, the same in a concept, which links motion/stack.css beside motion.css:
+//
+//   <div class="dc-motion dc-stack" data-motion="stack">
+//     <article class="dc-stack-card">…</article>
+//     …
+//   </div>
+//
+// Its still, without scripts, under reduced motion and where `enabled` is off (the editor's
+// on/off), is the cards one after another. Each card needs a background of its own, since the
+// cards cover each other. It moves only as the visitor scrolls, so it needs no MotionToggle. On
+// .dc-stack a site may set --dc-stack-top, a sticky header's height, --dc-stack-peek,
+// --dc-stack-gap, --dc-stack-shrink and --dc-stack-min, the cards' least height (stack.css). Any
+// other attribute goes on the element.
+
+import './motion.css';
+import './stack.css';
+
+interface Props {
+  /** The editor's on/off: off, the cards stay one after another and nothing runs. */
+  enabled?: boolean;
+  /** The element to render, `div` by default. */
+  as?: string;
+  class?: string;
+  [attribute: string]: unknown;
+}
+
+const { enabled = true, as: Element = 'div', class: className, ...attributes } = Astro.props;
+---
+
+<Element {...attributes} class:list={['dc-motion', 'dc-stack', className]} data-motion={enabled ? 'stack' : undefined}><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ stack: () => import('./stack.js') });
+</script>

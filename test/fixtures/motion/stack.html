@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sections that stack</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<link rel="stylesheet" href="/src/motion/stack.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; color: #111; background: #fff; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+  .gap { height: 700px; }
+  .dc-stack { --dc-stack-min: 420px; }
+  .dc-stack-card { padding: 32px; border-radius: 16px; background: #eee; }
+  .dc-stack-card:nth-child(2) { background: #dde6f5; }
+  .dc-stack-card:nth-child(3) { background: #f5e6dd; }
+  .dc-stack-card:nth-child(4) { background: #e1f0e1; }
+  h2 { margin: 0 0 8px; }
+  #tall p { margin: 0 0 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="gap"><p>Above the stack.</p></div>
+<div class="dc-motion dc-stack" id="stack" data-motion="stack">
+  <article class="dc-stack-card" id="one"><h2>The first card</h2><p>A clinic's site. <a href="#one" id="link-one">Read about it</a>.</p></article>
+  <article class="dc-stack-card" id="tall"><h2>A long card</h2>
+    <p>Its lines run longer than the screen, so it pins by its foot.</p><p>Second.</p><p>Third.</p><p>Fourth.</p><p>Fifth.</p><p>Sixth.</p><p>Seventh.</p><p>Eighth.</p><p>Ninth.</p><p>Tenth.</p><p>Eleventh.</p><p>Twelfth.</p><p>Thirteenth.</p><p>Fourteenth.</p><p>Fifteenth.</p><p>Sixteenth.</p><p id="tall-last">The last line, read before the next card covers it.</p>
+  </article>
+  <article class="dc-stack-card" id="three"><h2>The third card</h2><p>A gym's site.</p></article>
+  <article class="dc-stack-card" id="four"><h2>The last card</h2><p>A builder's site. <a href="#end" id="link-four">Read about it</a>.</p></article>
+</div>
+<div class="gap" id="end"><p>The rest of the page.</p></div>
+</div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ stack: () => import('/src/motion/stack.js') });
+</script>
+</body>
+</html>

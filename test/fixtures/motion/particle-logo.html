@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The particle logo</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  #logo { display: grid; place-items: center; width: 600px; height: 500px; margin: 0; }
+  #logo svg { display: block; width: 300px; height: 300px; }
+  .square { fill: #d81e1e; } /* the page's CSS colours the logo, as a site's tokens do */
+  .below { height: 200vh; }
+</style>
+</head>
+<body>
+<figure class="dc-motion" id="logo" data-motion="particle-logo">
+  <svg viewBox="0 0 100 100" role="img" aria-label="A square and a circle"><rect class="square" width="45" height="45"/><circle cx="72" cy="72" r="26" fill="#555555"/></svg>
+</figure>
+<div class="below"><p>The rest of the page.</p></div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ 'particle-logo': () => import('/src/motion/particle-logo.js') });
+</script>
+</body>
+</html>

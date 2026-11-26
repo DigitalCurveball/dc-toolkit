@@ -1,0 +1,39 @@
+/* A cursor spotlight (spotlight.js; the markup in Spotlight.astro's comment): a faint glow over a
+   dark section's own background, behind its content, and on its cards (.dc-spotlight-card, each
+   with a background of its own) a glow inside and a brighter edge, all from where spotlight.js says
+   the light is and how far on it is. Its still, without scripts, under reduced motion and until a
+   cursor comes, is the section without the glow. The section's ::before and each card's ::before
+   and ::after are the spotlight's.
+
+   On .dc-spotlight a site may set --dc-spotlight-color, the light's colour (white);
+   --dc-spotlight-size, the glow's radius (420px); --dc-spotlight-glow, its strength (0.14); and
+   --dc-spotlight-edge, the cards' edges' (0.6). The component writes the colour from its prop. */
+
+:where(.dc-spotlight) { --dc-spotlight-color: #fff; --dc-spotlight-size: 420px; --dc-spotlight-glow: 0.14; --dc-spotlight-edge: 0.6; }
+:where(.dc-spotlight-card) { position: relative; isolation: isolate; }
+
+.dc-spotlight::before, .dc-spotlight-card::before, .dc-spotlight-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  opacity: var(--dc-spotlight-on, 0);
+}
+.dc-spotlight::before {
+  z-index: -1;
+  background: radial-gradient(circle var(--dc-spotlight-size) at var(--dc-spotlight-x, 50%) var(--dc-spotlight-y, 50%), color-mix(in srgb, var(--dc-spotlight-color) calc(var(--dc-spotlight-glow) * 100%), transparent), transparent);
+}
+/* On a card, the light where it falls on the card: the section's point less the card's place. */
+.dc-spotlight-card::before, .dc-spotlight-card::after {
+  --at: calc(var(--dc-spotlight-x, -999px) - var(--dc-spotlight-left, 0px)) calc(var(--dc-spotlight-y, -999px) - var(--dc-spotlight-top, 0px));
+}
+.dc-spotlight-card::before {
+  z-index: -1;
+  background: radial-gradient(circle var(--dc-spotlight-size) at var(--at), color-mix(in srgb, var(--dc-spotlight-color) calc(var(--dc-spotlight-glow) * 100%), transparent), transparent);
+}
+.dc-spotlight-card::after {
+  padding: 1px;
+  background: radial-gradient(circle calc(var(--dc-spotlight-size) * 0.6) at var(--at), color-mix(in srgb, var(--dc-spotlight-color) calc(var(--dc-spotlight-edge) * 100%), transparent), transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+@media (forced-colors: active) { .dc-spotlight::before, .dc-spotlight-card::before, .dc-spotlight-card::after { display: none; } }

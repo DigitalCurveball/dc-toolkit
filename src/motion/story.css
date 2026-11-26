@@ -1,0 +1,100 @@
+/* The scroll story (story.js; its markup in ScrollStory.astro's comment): steps that each pair a
+   picture with a few lines, inside .dc-story-steps.
+
+   Its still, without scripts, under reduced motion and where the editor or a switch turned it off, is the
+   steps stacked, each picture above its lines. Where motion is allowed and scripts run, the
+   pictures are pinned with CSS's own `position: sticky`: beside the steps where the story is
+   720px wide or more, across the top of the screen above them where it is narrower. The steps
+   scroll past, and the picture of the one being read shows, with a slow drift as it scrolls and a
+   thin line filling as the story goes; story.js says which, and how far. The layout is CSS's from
+   the first paint, so nothing shifts when the script starts, and until it does, the first picture
+   shows.
+
+   The texts take the grid's first column and the pictures its second, where several can share a
+   cell: an item placed by CSS alone can't share one with a picture across every row. On a phone
+   the second column has no width, and each picture reaches back across the story from its edge.
+
+   On .dc-story, a site may set --dc-story-ratio, the pictures' shape (4 / 3); --dc-story-top, the
+   height of a sticky header the pictures pin below (0px); and --dc-story-gap, between the steps
+   and the pictures (64px). The component writes --dc-story-steps, how many steps there are. */
+
+:where(.dc-story) { --dc-story-ratio: 4 / 3; --dc-story-top: 0px; --dc-story-gap: 64px; }
+:where(.dc-story-step) { display: grid; gap: 16px; margin-block-end: 48px; }
+:where(.dc-story-picture) { margin: 0; overflow: hidden; aspect-ratio: var(--dc-story-ratio); }
+:where(.dc-story-picture) img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .dc-story[data-motion]:not([data-motion-state='failed'], [data-motion-state='off']) {
+    --dc-story-picture: min(100cqi / (var(--dc-story-ratio)), 45svh); /* its height on a phone */
+    container: dc-story / inline-size;
+
+    & > .dc-story-steps { display: grid; grid-template-columns: minmax(0, 1fr) 0px; }
+    & .dc-story-step { display: contents; }
+    & .dc-story-text { grid-column: 1; min-height: 55svh; padding-block: 24px; }
+    /* The first step's lines start below the pinned picture. */
+    & .dc-story-step:first-child > .dc-story-text { margin-top: var(--dc-story-picture); }
+
+    & .dc-story-picture {
+      grid-column: 2;
+      grid-row: 1 / span var(--dc-story-steps, 1);
+      justify-self: end;
+      align-self: start;
+      position: sticky;
+      top: var(--dc-story-top);
+      z-index: 1;
+      width: 100cqi;
+      height: var(--dc-story-picture);
+      aspect-ratio: auto;
+      opacity: 0;
+      transition: opacity .6s ease;
+    }
+    /* The picture being read shows, and so does every one before it: each fades in over the one
+       before, which stays opaque beneath it, so a cross-fade is never see-through. On a phone the
+       steps scroll under the pinned picture, and a fade from one picture to another showed their
+       words through it. The first is always shown, the floor of the stack. */
+    & .dc-story-picture.is-active,
+    & .dc-story-step:first-child > .dc-story-picture,
+    & .dc-story-step:has(~ .dc-story-step > .dc-story-picture.is-active) > .dc-story-picture { opacity: 1; }
+    & .dc-story-picture img { transform: scale(calc(1.02 + var(--dc-story-drift, 0) * 0.06)); }
+
+    /* The line that fills as the story goes: across the foot of the picture on a phone. */
+    & > .dc-story-steps::after {
+      content: '';
+      grid-column: 2;
+      grid-row: 1 / span var(--dc-story-steps, 1);
+      justify-self: end;
+      align-self: start;
+      position: sticky;
+      top: calc(var(--dc-story-top) + var(--dc-story-picture));
+      z-index: 1;
+      width: 100cqi;
+      height: 3px;
+      margin-top: var(--dc-story-picture);
+      background: linear-gradient(to right, currentColor calc(var(--dc-story-total, 0) * 100%), color-mix(in srgb, currentColor 18%, transparent) 0);
+    }
+
+    @container dc-story (min-width: 720px) {
+      & > .dc-story-steps { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--dc-story-gap); }
+      & .dc-story-text { min-height: 70svh; display: flex; flex-direction: column; justify-content: center; padding-block: 48px; }
+      & .dc-story-step:first-child > .dc-story-text { margin-top: 0; }
+      /* Beside the steps, in the middle of the screen. */
+      & .dc-story-picture {
+        justify-self: stretch;
+        width: auto;
+        height: auto;
+        aspect-ratio: var(--dc-story-ratio);
+        top: max(var(--dc-story-top), 50svh - (100cqi - var(--dc-story-gap)) / 4 / (var(--dc-story-ratio)));
+      }
+      /* The line, in the gap between the steps and the picture. */
+      & > .dc-story-steps::after {
+        justify-self: start;
+        top: 30svh;
+        width: 2px;
+        height: 40svh;
+        margin-top: 15svh;
+        margin-left: calc(var(--dc-story-gap) / -2 - 1px);
+        background: linear-gradient(to bottom, currentColor calc(var(--dc-story-total, 0) * 100%), color-mix(in srgb, currentColor 18%, transparent) 0);
+      }
+    }
+  }
+}

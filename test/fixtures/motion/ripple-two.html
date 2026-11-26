@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two different photos rippling at once</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  .gap { height: 1400px; }
+  .row { display: flex; gap: 40px; padding-left: 40px; }
+  figure { margin: 0; }
+  img { display: block; width: 480px; height: 320px; }
+</style>
+</head>
+<body>
+<div class="gap"><p>The top of the page.</p></div>
+<div class="row">
+  <figure class="dc-motion" id="first" data-motion="ripple"><img src="ripple-photo.svg" alt="Stripes, a red circle and a green band" width="600" height="400"></figure>
+  <figure class="dc-motion" id="second" data-motion="ripple"><img src="ripple-photo-2.svg" alt="Yellow dots on black, a blue panel" width="600" height="400"></figure>
+</div>
+<div class="gap"><p>The rest of the page.</p></div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ ripple: () => import('/src/motion/ripple.js') });
+</script>
+</body>
+</html>

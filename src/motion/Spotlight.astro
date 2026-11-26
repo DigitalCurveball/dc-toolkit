@@ -1,0 +1,41 @@
+---
+// A cursor spotlight (spotlight.js, spotlight.css), on a dark section:
+//
+//   <Spotlight as="section" color="#D11F1F" enabled={packages.motion}>
+//     …
+//     <article class="dc-spotlight-card">…</article>
+//   </Spotlight>
+//
+// A faint glow follows a mouse or pen across the section, and the cards marked .dc-spotlight-card,
+// each with a background of its own, light inside and at their edges near it; on a phone a tap
+// lights the spot for a moment. Its still is the section as it is. Text over the glow must pass
+// contrast at its brightest, which dc-qa measures. It needs no MotionToggle. On the element a site
+// may set --dc-spotlight-size, --dc-spotlight-glow and --dc-spotlight-edge (spotlight.css). Any
+// other attribute goes on the element.
+
+import './motion.css';
+import './spotlight.css';
+
+interface Props {
+  /** The light's colour: white by default; a brand colour on a dark ground. */
+  color?: string;
+  /** The editor's on/off: off, the section is as it is. */
+  enabled?: boolean;
+  /** The element to render, `section` by default. */
+  as?: string;
+  class?: string;
+  style?: string;
+  [attribute: string]: unknown;
+}
+
+const { color, enabled = true, as: Element = 'section', class: className, style, ...attributes } = Astro.props;
+const custom = [color && `--dc-spotlight-color: ${color}`, style].filter(Boolean).join('; ');
+---
+
+<Element {...attributes} class:list={['dc-motion', 'dc-spotlight', className]} style={custom || undefined} data-motion={enabled ? 'spotlight' : undefined}><slot /></Element>
+
+<script>
+  import { register } from './runtime.js';
+
+  register({ spotlight: () => import('./spotlight.js') });
+</script>

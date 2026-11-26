@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photos that ripple</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  figure { margin: 0 0 0 40px; }
+  #top img { display: block; width: 480px; height: 320px; }
+  /* Another shape than the photo's, cropped: the effect must crop as the page does. */
+  #below img { display: block; width: 480px; height: 360px; object-fit: cover; }
+  .gap { height: 1400px; }
+</style>
+</head>
+<body>
+<figure class="dc-motion" id="top" data-motion="ripple"><img src="ripple-photo.svg" alt="Stripes, a red circle and a green band" width="600" height="400"></figure>
+<div class="gap"><p>Further down the page.</p></div>
+<!-- A 1200px raster chosen through srcset, as Astro's <Image> writes it: its naturalWidth is corrected for density (480), not its pixels. -->
+<figure class="dc-motion" id="below" data-motion="ripple"><img src="ripple-photo.png" srcset="ripple-photo.png 1200w" sizes="480px" alt="The same photo, cropped" width="600" height="400"></figure>
+<div class="gap"><p>The rest of the page.</p></div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ ripple: () => import('/src/motion/ripple.js') });
+</script>
+</body>
+</html>

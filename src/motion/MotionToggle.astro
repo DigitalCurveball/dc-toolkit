@@ -1,0 +1,21 @@
+---
+// The page's one pause control for motion (WCAG 2.2.2): pauses and resumes every effect on the
+// page, remembered from page to page, with its state in aria-pressed (runtime.js). Hidden until a
+// looping effect runs, so it never shows without scripts, under reduced motion, or on a page whose
+// effects are all switched off. Put it where it is seen with the motion, such as a corner of the
+// moving section or the header. Its look is the site's: style `:global(.dc-motion-toggle)`, and
+// its paused state with `[aria-pressed='true']`. The label stays the same in both states, as a
+// toggle's should; a site can show the state with an icon.
+
+import './motion.css';
+
+interface Props {
+  /** The button's text, "Pause motion" by default. */
+  label?: string;
+  class?: string;
+}
+
+const { label = 'Pause motion', class: className } = Astro.props;
+---
+
+<button type="button" class:list={['dc-motion-toggle', className]} aria-pressed="false" hidden>{label}</button>

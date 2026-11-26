@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>White text over light colours</title>
+<link rel="stylesheet" href="/src/motion/motion.css">
+<style>
+  body { margin: 0; font: 18px/1.5 sans-serif; }
+  .hero { min-height: 80vh; display: grid; place-content: center; padding: 2rem; color: #fff; }
+  h1 { font-size: 3rem; margin: 0; }
+  .dc-motion-toggle { position: absolute; top: 1rem; right: 1rem; }
+  .below { height: 150vh; }
+</style>
+</head>
+<body>
+<section class="hero dc-motion" id="hero" data-motion="gradient" data-motion-options='{"colors":["#f2f2f2","#ffffff","#dcdcf5"]}' style="background: radial-gradient(56% 66% at 86% 16%, rgb(220 220 245 / 1) 0%, rgb(220 220 245 / 0.84375) 25%, rgb(220 220 245 / 0.5) 50%, rgb(220 220 245 / 0.15625) 75%, rgb(220 220 245 / 0) 100%), radial-gradient(62% 70% at 16% 20%, rgb(255 255 255 / 1) 0%, rgb(255 255 255 / 0.84375) 25%, rgb(255 255 255 / 0.5) 50%, rgb(255 255 255 / 0.15625) 75%, rgb(255 255 255 / 0) 100%), rgb(242 242 242)">
+  <button type="button" class="dc-motion-toggle" aria-pressed="false" hidden>Pause motion</button>
+  <h1>A heading over motion</h1>
+  <p>A line of body text over the moving background.</p>
+</section>
+<div class="below"><p>The rest of the page.</p></div>
+<script type="module">
+  import { register } from '/src/motion/runtime.js';
+  register({ gradient: () => import('/src/motion/gradient.js') });
+</script>
+</body>
+</html>

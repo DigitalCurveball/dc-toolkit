@@ -115,6 +115,45 @@ jobs:
         with:
           configPath: ./lighthouserc.ci.json
 
+      # Every page's scores and largest tasks in the job summary, and in the log, which GitHub's
+      # API can read as it can't the summary, from a run that passed as from one that failed: a
+      # page near its budget is seen before it fails one, and a slower run has a baseline to be
+      # compared with. /motion/ sat at the edge of it, passing and failing on the same commit, and
+      # a passing run said nothing (dc-pipeline #61). The tasks, not the trace: a trace is several
+      # MB a page, which every run of every site would spend the Actions storage on.
+      - name: Lighthouse scores
+        if: ${{ !cancelled() && (steps.lighthouse.outcome == 'success' || steps.lighthouse.outcome == 'failure') }}
+        # A heredoc, not node -e '…': the script may hold any quote, and an apostrophe in a comment
+        # once ended it early, failing the step (2026-11-25).
+        run: |
+          node <<'SCORES' | tee -a "$GITHUB_STEP_SUMMARY"
+            const fs = require("fs");
+            const runs = fs.readdirSync(".lighthouseci").filter((f) => /^lhr-.*\.json$/.test(f))
+              .map((f) => JSON.parse(fs.readFileSync(".lighthouseci/" + f, "utf8")))
+              .sort((a, b) => a.fetchTime.localeCompare(b.fetchTime));
+            const score = (r, c) => (r.categories[c] ? Math.round(r.categories[c].score * 100) : "");
+            const lines = ["### Lighthouse", "", "| Page | Performance | Accessibility | SEO | Best practices | Blocking time |", "|---|---|---|---|---|---|"];
+            for (const r of runs) {
+              const page = new URL(r.finalDisplayedUrl || r.requestedUrl).pathname;
+              lines.push(`| ${page} | ${score(r, "performance")} | ${score(r, "accessibility")} | ${score(r, "seo")} | ${score(r, "best-practices")} | ${r.audits["total-blocking-time"].displayValue} |`);
+            }
+            // Where each page's main-thread time went: a baseline to compare a slower run with. Its
+            // largest tasks as they ran, unthrottled (start + length, ms), and its long tasks as
+            // Lighthouse estimates them on a phone, with the script each was in.
+            const ms = (n) => Math.round(n);
+            const file = (url) => (url || "").split("/").pop() || "the page";
+            lines.push("", "### Lighthouse tasks", "", "| Page | Largest tasks, as run | Long tasks, on a phone |", "|---|---|---|");
+            for (const r of runs) {
+              const page = new URL(r.finalDisplayedUrl || r.requestedUrl).pathname;
+              const largest = [...(r.audits["main-thread-tasks"]?.details?.items ?? [])].sort((a, b) => b.duration - a.duration).slice(0, 3)
+                .map((t) => `${ms(t.startTime)} + ${ms(t.duration)}`).join(", ");
+              const long = (r.audits["long-tasks"]?.details?.items ?? []).slice(0, 4)
+                .map((t) => `${ms(t.duration)} in ${file(t.url)} at ${ms(t.startTime)}`).join("; ");
+              lines.push(`| ${page} | ${largest} | ${long || "none"} |`);
+            }
+            console.log(lines.join("\n"));
+          SCORES
+
       # The reports only when Lighthouse failed, which is when someone reads them. Uploaded from
       # every run, at 15 to 27 MB a run on the larger sites, they held 2.4 GB against the Free
       # plan's 500 MB of Actions storage (2026-10-24). `.lighthouseci` starts with a dot, which
