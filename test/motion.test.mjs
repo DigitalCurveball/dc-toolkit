@@ -617,22 +617,32 @@ test('on a phone the scroll story pins its picture above the steps, which scroll
   await context.close();
 });
 
-test('without scripts, or under reduced motion, the scroll story is its steps stacked, each with its picture', async () => {
-  for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }]) {
+test('without scripts, or under reduced motion, the scroll story is its steps one after another, each picture beside its lines, or above them on a phone', async () => {
+  const phone = { viewport: { width: 390, height: 844 } };
+  for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }, { ...phone, javaScriptEnabled: false }, { ...phone, reducedMotion: 'reduce' }]) {
     const { context, page } = await open('story', options);
     await page.waitForTimeout(1200);
     const { opacities, position } = await story(page);
-    assert.equal(position, 'static', JSON.stringify(options));
-    assert.deepEqual(opacities, ['1', '1', '1', '1'], JSON.stringify(options));
-    // Each picture sits above its own step's text, in order down the page.
-    const order = await page.evaluate(() => [...document.querySelectorAll('.dc-story-step')].map((s) => {
-      const p = s.querySelector('.dc-story-picture').getBoundingClientRect();
-      const t = s.querySelector('.dc-story-text').getBoundingClientRect();
-      return [Math.round(p.top), Math.round(t.top)];
-    }));
-    order.forEach(([picture, text], i) => {
-      assert.ok(picture < text, `step ${i}: its picture above its text`);
-      if (i) assert.ok(picture > order[i - 1][1], `step ${i}: below the step before`);
+    const label = JSON.stringify(options);
+    assert.equal(position, 'static', label);
+    assert.deepEqual(opacities, ['1', '1', '1', '1'], label);
+    const steps = await page.evaluate(() => {
+      const width = document.querySelector('.dc-story').getBoundingClientRect().width;
+      return [...document.querySelectorAll('.dc-story-step')].map((s) => {
+        const p = s.querySelector('.dc-story-picture').getBoundingClientRect();
+        const t = s.querySelector('.dc-story-text').getBoundingClientRect();
+        return { picture: { top: p.top, bottom: p.bottom, right: p.right, width: p.width }, text: { top: t.top, bottom: t.bottom, left: t.left }, width };
+      });
+    });
+    steps.forEach(({ picture, text, width }, i) => {
+      if (options.viewport) {
+        assert.ok(picture.bottom <= text.top, `${label} step ${i}: its picture above its lines`);
+      } else {
+        // Wide: beside its lines, at most half the story's width, so a square picture isn't the story's full width tall.
+        assert.ok(picture.right <= text.left && picture.top < text.bottom && text.top < picture.bottom, `${label} step ${i}: its picture beside its lines`);
+        assert.ok(picture.width <= width / 2, `${label} step ${i}: its picture ${picture.width}px wide in a story of ${width}px`);
+      }
+      if (i) assert.ok(Math.min(picture.top, text.top) >= Math.max(steps[i - 1].picture.bottom, steps[i - 1].text.bottom), `${label} step ${i}: below the step before`);
     });
     await context.close();
   }

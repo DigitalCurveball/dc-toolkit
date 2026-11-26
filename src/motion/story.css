@@ -2,8 +2,10 @@
    picture with a few lines, inside .dc-story-steps.
 
    Its still, without scripts, under reduced motion and where the editor or a switch turned it off, is the
-   steps stacked, each picture above its lines. Where motion is allowed and scripts run, the
-   pictures are pinned with CSS's own `position: sticky`: beside the steps where the story is
+   steps one after another, each picture beside its lines where the story is 720px wide or more,
+   and above them where it is narrower: stacked at the story's full width, a square picture stood
+   1200px tall on a laptop (2026-11-27). Where motion is allowed and scripts run, the pictures are
+   pinned with CSS's own `position: sticky`: beside the steps where the story is
    720px wide or more, across the top of the screen above them where it is narrower. The steps
    scroll past, and the picture of the one being read shows, with a slow drift as it scrolls and a
    thin line filling as the story goes; story.js says which, and how far. The layout is CSS's from
@@ -18,10 +20,15 @@
    height of a sticky header the pictures pin below (0px); and --dc-story-gap, between the steps
    and the pictures (64px). The component writes --dc-story-steps, how many steps there are. */
 
-:where(.dc-story) { --dc-story-ratio: 4 / 3; --dc-story-top: 0px; --dc-story-gap: 64px; }
+:where(.dc-story) { --dc-story-ratio: 4 / 3; --dc-story-top: 0px; --dc-story-gap: 64px; container: dc-story / inline-size; }
 :where(.dc-story-step) { display: grid; gap: 16px; margin-block-end: 48px; }
 :where(.dc-story-picture) { margin: 0; overflow: hidden; aspect-ratio: var(--dc-story-ratio); }
 :where(.dc-story-picture) img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The still, wide: each picture beside its lines. Columns on the step alone, which is
+   display: contents while the story moves, so they reach the still and nothing else. */
+@container dc-story (min-width: 720px) {
+  :where(.dc-story-step) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--dc-story-gap); align-items: center; }
+}
 
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
   .dc-story[data-motion]:not([data-motion-state='failed'], [data-motion-state='off']) {
