@@ -5,7 +5,7 @@
 //
 // - **A still without scripts**: every effect's element paints something of its own (a background
 //   image or colour, or an image inside it) when no script runs; a type effect (scramble, band)
-//   has its text, a stack its cards, a count-up its number and a magnetic button itself.
+//   has its text, a stack its cards, and a count-up its number.
 // - **The still under reduced motion**: no effect starts, and nothing is drawn over the still.
 // - **Each effect starts**, once scrolled to: it loads, and runs. One that can't run in this browser
 //   (no WebGL) is noted, not failed, since its still is what shows.
@@ -101,8 +101,8 @@ async function settle(page) {
 
 function missingStills() {
   // The still of these is their own content: kinetic type's text (dc-pipeline #54), the stack's
-  // cards (#55), and a count-up's number and a magnetic button (#57).
-  const text = new Set(['scramble', 'band', 'stack', 'count', 'magnet']);
+  // cards (#55), and a count-up's number (#57).
+  const text = new Set(['scramble', 'band', 'stack', 'count']);
   return [...document.querySelectorAll('[data-motion]')].filter((el) => {
     if (text.has(el.dataset.motion) && el.textContent.trim()) return false;
     const style = getComputedStyle(el);

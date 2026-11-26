@@ -1055,13 +1055,11 @@ test('dc-qa passes the stack, measuring each card\'s text where it is seen', asy
 });
 
 
-// Count-ups, a magnetic button and a spotlight (count.js, magnet.js, spotlight.js), from
-// fixtures/motion/numbers.html: a figure on the first screen (#opening), then a screen down a dark
-// section (#spot) lit by the spotlight, with two cards (#card first) whose prices count up (#price
-// first), and a magnetic button (#magnet).
+// Count-ups and a spotlight (count.js, spotlight.js), from fixtures/motion/numbers.html: a figure
+// on the first screen (#opening), then a screen down a dark section (#spot) lit by the spotlight,
+// with two cards (#card first) whose prices count up (#price first), and a button (#button).
 
-const numbers = (page) => page.waitForFunction(() => window.dcMotion?.instances().length === 5, null, { timeout: 10000 });
-const leanOf = (page) => page.evaluate(() => new DOMMatrix(getComputedStyle(document.getElementById('magnet')).transform));
+const numbers = (page) => page.waitForFunction(() => window.dcMotion?.instances().length === 4, null, { timeout: 10000 });
 const lit = (page) => page.evaluate(() => document.getElementById('spot').style.getPropertyValue('--dc-spotlight-on'));
 
 test('a number counts up from zero when half of it is on the screen, in its own width, then is as written', async () => {
@@ -1100,32 +1098,15 @@ test('a number on the screen when the page opens, or any while motion is paused,
   await context.close();
 });
 
-test('a magnetic button leans toward a mouse that comes near, no more than 10px, and springs back when it leaves', async () => {
-  const { context, page } = await open('numbers');
-  await numbers(page);
-  await toward(page, 'magnet');
-  await started(page, 'magnet');
-  const box = await page.locator('#magnet').boundingBox();
-  await page.mouse.move(box.x + box.width + 10, box.y + box.height / 2, { steps: 4 });
-  await page.waitForTimeout(600);
-  const lean = await leanOf(page);
-  assert.ok(lean.m41 > 2 && lean.m41 <= 10 && Math.abs(lean.m42) < 2, `toward the cursor, at the right: ${lean.m41.toFixed(1)}, ${lean.m42.toFixed(1)}`);
-  await page.mouse.move(5, 5, { steps: 4 });
-  await page.waitForTimeout(1200);
-  assert.equal((await leanOf(page)).m41, 0, 'back in place');
-  await context.close();
-});
-
-test('on a phone a magnetic button stays put, and a tap lights the spotlight for a moment', async () => {
+test('on a phone a tap beside the section\'s button lights the spotlight for a moment', async () => {
   const { context, page } = await open('numbers', { hasTouch: true });
   await numbers(page);
-  await toward(page, 'magnet');
+  await toward(page, 'button');
   await started(page, 'spot');
   const box = await page.locator('#card').boundingBox();
   await page.touchscreen.tap(box.x + 40, box.y + 40);
   await page.waitForTimeout(250);
   assert.ok(Number(await lit(page)) > 0.5, 'lit where the finger landed');
-  assert.equal((await leanOf(page)).m41, 0, 'the button stays put');
   await page.waitForTimeout(2500);
   assert.equal(await lit(page), '', 'out again');
   await context.close();
@@ -1154,22 +1135,21 @@ test('the spotlight follows a mouse across the section and goes out when it leav
   await context.close();
 });
 
-test('under reduced motion nothing counts, leans or lights', async () => {
+test('under reduced motion nothing counts or lights', async () => {
   const { context, page } = await open('numbers', { reducedMotion: 'reduce' });
   await page.waitForTimeout(1200);
-  await toward(page, 'magnet');
-  const box = await page.locator('#magnet').boundingBox();
-  await page.mouse.move(box.x + box.width + 20, box.y + box.height / 2, { steps: 4 });
+  await toward(page, 'card');
+  const box = await page.locator('#card').boundingBox();
+  await page.mouse.move(box.x + 40, box.y + 40, { steps: 4 });
   await page.waitForTimeout(500);
   assert.equal(await page.locator('#price [aria-hidden="true"]').count(), 0);
-  assert.equal((await leanOf(page)).m41, 0);
   assert.equal(await lit(page), '');
   await context.close();
 });
 
-test('dc-qa passes the count-ups, the magnetic button and the spotlight, measuring the text with the light behind it', async () => {
+test('dc-qa passes the count-ups and the spotlight, measuring the text with the light behind it', async () => {
   const result = await checkMotion(browser, fixture('numbers'));
   assert.deepEqual(result.problems, []);
-  assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false, false, false]);
+  assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false, false]);
   assert.ok(result.contrast.some((c) => c.text === 'Presence'), 'a card measured');
 });

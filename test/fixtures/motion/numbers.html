@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Count-ups, a magnetic button and a spotlight</title>
+<title>Count-ups and a spotlight</title>
 <link rel="stylesheet" href="/src/motion/motion.css">
 <link rel="stylesheet" href="/src/motion/spotlight.css">
 <style>
@@ -25,12 +25,12 @@
     <article class="dc-spotlight-card" id="card"><h3>Presence</h3><p class="price"><span class="dc-motion" id="price" data-motion="count" style="font-variant-numeric: tabular-nums">$1,500</span></p></article>
     <article class="dc-spotlight-card"><h3>Practice</h3><p class="price"><span class="dc-motion" data-motion="count" style="font-variant-numeric: tabular-nums">$2,900</span></p></article>
   </div>
-  <span class="dc-motion" id="magnet" data-motion="magnet" style="display: inline-block"><a class="button" href="#end"><span data-magnet-label>Book a call</span></a></span>
+  <a class="button" id="button" href="#end">Book a call</a>
 </section>
 <div class="gap" id="end"><p>The rest of the page.</p></div>
 <script type="module">
   import { register } from '/src/motion/runtime.js';
-  register({ count: () => import('/src/motion/count.js'), magnet: () => import('/src/motion/magnet.js'), spotlight: () => import('/src/motion/spotlight.js') });
+  register({ count: () => import('/src/motion/count.js'), spotlight: () => import('/src/motion/spotlight.js') });
 </script>
 </body>
 </html>
