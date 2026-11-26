@@ -128,6 +128,23 @@ test('where WebGL is drawn in software, with no graphics chip, the effect shows 
   await context.close();
 });
 
+test('on a graphics chip, the effect waits for the worker\'s answer, then makes its context and moves', async () => {
+  // A worker that answers "not software", as on a phone, where these tests' browser would say it is.
+  const chip = (context) => context.addInitScript(() => {
+    window.Worker = class {
+      postMessage() {
+        setTimeout(() => this.onmessage?.({ data: false }), 50);
+      }
+      terminate() {}
+    };
+  });
+  const { context, page } = await open('pass', {}, chip, { software: false });
+  await page.waitForFunction(() => document.querySelector('.dc-motion-layer.is-shown'), null, { timeout: 10000 });
+  assert.equal(await page.evaluate(() => window.dcMotion.instances()[0].state), 'running');
+  assert.equal(await page.locator('.dc-motion-toggle').isVisible(), true);
+  await context.close();
+});
+
 test('a lost WebGL context shows the still, and the effect starts again when it returns', async () => {
   const { context, page } = await open('pass');
   await running(page);

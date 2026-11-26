@@ -104,10 +104,12 @@ export default {
     const canvas = kit.layer('canvas');
     const shader = surface(canvas, FRAGMENT, { lost: kit.lost, restored: kit.restored });
     if (!shader || shader.status() === 'failed') return null;
-    const { gl, uniform } = shader;
     let primed = false;
-    // The uniforms that never change, set once the shader is ready to take them.
+    // The uniforms that never change, set once the shader is ready to take them. The surface's
+    // context and uniforms are read only once it is ready: while a worker decides whether WebGL is
+    // drawn in software, it has none (gl.js).
     const prime = () => {
+      const { gl, uniform } = shader;
       gl.uniform3fv(uniform('u_ground'), ground);
       gl.uniform3fv(uniform('u_color'), pad(colours.flat(), 12));
       gl.uniform2fv(uniform('u_extent'), pad(FIELDS.flatMap((f) => f.size), 8));
@@ -139,6 +141,7 @@ export default {
           lean.y += (pointer.y - lean.y) * ease;
         }
         const t = time * options.speed;
+        const { gl, uniform } = shader;
         FIELDS.forEach(({ at: [x, y], drift: [fx, fy], phase: [px, py] }, i) => {
           const dx = DRIFT * (Math.sin(t * TEMPO * fx + px) - Math.sin(px));
           const dy = DRIFT * (Math.cos(t * TEMPO * fy + py) - Math.cos(py));

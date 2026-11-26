@@ -31,7 +31,9 @@ void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
 /**
  * A shader surface on `canvas`, or null where WebGL is unavailable. `status()` is 'compiling',
  * 'ready' or 'failed'; once ready, `uniform(name)` is a uniform's location and `draw()` draws the
- * whole canvas.
+ * whole canvas. Read `gl` and `uniform` only once it is ready, never at the start: while the worker
+ * decides, the surface has no context yet (dc-pipeline #61, where the gradient took them at setup
+ * and never moved on a phone).
  */
 export function surface(canvas, fragment, handlers = {}) {
   if (globalThis.dcMotionSoftware) return make(canvas, fragment, handlers, false);
