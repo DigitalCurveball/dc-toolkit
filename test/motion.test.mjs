@@ -1086,7 +1086,7 @@ test('dc-qa passes the stack, measuring each card\'s text where it is seen', asy
   const result = await checkMotion(browser, fixture('stack'));
   assert.deepEqual(result.problems, []);
   assert.deepEqual(result.effects.map((e) => e.loops), [false]);
-  assert.ok(result.contrast.some((c) => c.text.startsWith('Fanlight')), 'the last card measured');
+  assert.ok(result.contrast.some((c) => c.text.startsWith('The last card')), 'the last card measured');
 });
 
 
