@@ -102,13 +102,20 @@ test('without WebGL the effect gives up and the still stays', async () => {
   await context.close();
 });
 
-test('where WebGL is drawn in software, with no graphics chip, the effect shows its still and compiles nothing', async () => {
+test('where WebGL is drawn in software, with no graphics chip, the effect shows its still, and the page makes no WebGL context', async () => {
   const compiles = (context) => context.addInitScript(() => {
     window.compiled = 0;
+    window.contexts = 0;
     const original = WebGLRenderingContext.prototype.compileShader;
     WebGLRenderingContext.prototype.compileShader = function (...args) {
       window.compiled++;
       return original.apply(this, args);
+    };
+    // Making one is itself the long task (dc-pipeline #61): a worker asks instead.
+    const make = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      if (/webgl/.test(type)) window.contexts++;
+      return make.call(this, type, ...rest);
     };
   });
   const { context, page } = await open('pass', {}, compiles, { software: false });
@@ -116,6 +123,7 @@ test('where WebGL is drawn in software, with no graphics chip, the effect shows 
   assert.equal(await page.evaluate(() => window.dcMotion.instances()[0].reason), 'unsupported');
   assert.equal(await page.locator('.dc-motion-layer').count(), 0);
   assert.equal(await page.evaluate(() => window.compiled), 0);
+  assert.equal(await page.evaluate(() => window.contexts), 0, 'no context on the page');
   assert.equal(await page.locator('.dc-motion-toggle').isVisible(), false);
   await context.close();
 });

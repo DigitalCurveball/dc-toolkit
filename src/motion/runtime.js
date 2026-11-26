@@ -13,7 +13,7 @@
 // - **One pause control for the page** (WCAG 2.2.2, Level A: anything moving for more than five
 //   seconds beside other content can be paused). Every `.dc-motion-toggle` button pauses and
 //   resumes every effect, and shows its state in `aria-pressed`. It stays hidden until a looping
-//   effect runs, and the choice is remembered from page to page. A paused effect holds its frame.
+//   effect draws its first frame, and the choice is remembered from page to page. A paused effect holds its frame.
 // - **Off-screen and in a hidden tab, nothing draws.**
 // - **An effect that plays once waits to be seen**: its clock holds at its first moment until half
 //   of it is on the screen (or it fills half the screen), so it isn't over before anyone sees it.
@@ -176,7 +176,6 @@ async function setup(record) {
   if (!record.loops && !record.seen) watcher.observe(record.el);
   measure(record);
   if (!inst.frame) reveal(record);
-  if (record.loops) showToggles();
   update();
 }
 
@@ -245,6 +244,9 @@ function draw(record, delta) {
 function reveal(record) {
   record.drawn = true;
   record.layer?.classList.add('is-shown');
+  // The pause control shows once a looping effect moves: one that gives up before its first frame
+  // (WebGL in software, found by a worker after setup, dc-pipeline #61) never brings it.
+  if (record.loops) showToggles();
 }
 
 function update() {

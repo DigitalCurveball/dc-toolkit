@@ -13,10 +13,15 @@
 // them), there is no surface and the effect shows its still, as without WebGL. Starting there costs
 // a long task however few pixels are drawn: no background compile, and a first draw that compiles
 // the pipeline (locally 7 and 22 ms after a 6 ms context; in CI, a 150 ms task, dc-pipeline #61).
-// The renderer is asked straight after the context is made, before anything compiles. The
-// browsers' own switch, `failIfMajorPerformanceCaveat`, gave headless Chromium and Firefox a
-// context all the same (2026-11-25). The checks, which must see an effect's frames to measure the
-// text over them, ask for it anyway: `window.dcMotionSoftware = true` before the page's scripts.
+// Making a context there is a long task in itself, 110 to 166 ms in CI, which failed /motion/'s
+// Lighthouse twice (dc-pipeline #61, 2026-11-26): so the question is asked once a page, in a
+// worker, whose context blocks only the worker, and the page makes its own context only on a
+// graphics chip. Until the answer comes, a surface is 'compiling'. Where a worker can't tell (no
+// OffscreenCanvas, or a policy that forbids the worker), the page asks its own context, straight
+// after making it, before anything compiles. The browsers' own switch,
+// `failIfMajorPerformanceCaveat`, gave headless Chromium and Firefox a context all the same
+// (2026-11-25). The checks, which must see an effect's frames to measure the text over them, ask
+// for it anyway: `window.dcMotionSoftware = true` before the page's scripts.
 
 const VERTEX = `
 attribute vec2 a_position;
@@ -28,10 +33,84 @@ void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
  * 'ready' or 'failed'; once ready, `uniform(name)` is a uniform's location and `draw()` draws the
  * whole canvas.
  */
-export function surface(canvas, fragment, { lost, restored } = {}) {
+export function surface(canvas, fragment, handlers = {}) {
+  if (globalThis.dcMotionSoftware) return make(canvas, fragment, handlers, false);
+  if (answer === undefined) ask();
+  if (answer !== undefined) return answer === true ? null : make(canvas, fragment, handlers, answer === null);
+  // Until the worker answers, the surface is 'compiling', and the effect draws nothing.
+  let inner = null;
+  let failed = false;
+  return {
+    get gl() {
+      return inner?.gl;
+    },
+    status() {
+      if (failed) return 'failed';
+      if (!inner) {
+        if (answer === undefined) return 'compiling';
+        inner = answer === true ? null : make(canvas, fragment, handlers, answer === null);
+        if (!inner) {
+          failed = true;
+          return 'failed';
+        }
+      }
+      return inner.status();
+    },
+    uniform: (name) => inner?.uniform(name),
+    draw: () => inner?.draw(),
+    destroy: () => inner?.destroy(),
+  };
+}
+
+// The page's answer to whether the browser draws WebGL in software, from a worker: true, false, or
+// null where the worker couldn't tell, and the page asks its own context instead; undefined until
+// it comes. Asked once a page.
+let answer;
+let asking = false;
+
+function ask() {
+  if (asking) return;
+  asking = true;
+  try {
+    if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
+      answer = null;
+      return;
+    }
+    // A context the worker can't make at all means no WebGL here, as good as software: the still.
+    const source = `onmessage = () => {
+      let answer = null;
+      try {
+        const gl = new OffscreenCanvas(1, 1).getContext('webgl');
+        if (!gl) answer = true;
+        else {
+          const info = gl.getExtension('WEBGL_debug_renderer_info');
+          answer = ${SOFTWARE}.test(String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)));
+          gl.getExtension('WEBGL_lose_context')?.loseContext();
+        }
+      } catch {}
+      postMessage(answer);
+    };`;
+    const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    const worker = new Worker(url);
+    URL.revokeObjectURL(url);
+    const done = (value) => {
+      if (answer === undefined) answer = value;
+      worker.terminate();
+    };
+    worker.onmessage = (event) => done(event.data);
+    worker.onerror = () => done(null); // a policy that forbids it, say
+    setTimeout(() => done(null), 3000);
+    worker.postMessage(0);
+  } catch {
+    answer = null;
+  }
+}
+
+/** A surface on `canvas` made now: `check` asks its own context whether it is drawn in software. */
+function make(canvas, fragment, { lost, restored }, check) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' });
   if (!gl) return null;
-  if (software(gl) && !globalThis.dcMotionSoftware) {
+  if (check && software(gl)) {
     gl.getExtension('WEBGL_lose_context')?.loseContext();
     return null;
   }
@@ -102,9 +181,10 @@ export function surface(canvas, fragment, { lost, restored } = {}) {
 /** Whether the browser draws this context's WebGL in software, by the renderer it names. */
 function software(gl) {
   const info = gl.getExtension('WEBGL_debug_renderer_info');
-  const renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
-  return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(renderer);
+  return SOFTWARE.test(String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)));
 }
+
+const SOFTWARE = /swiftshader|llvmpipe|softpipe|software|basic render/i; // the renderers that draw in software
 
 /** A colour as CSS writes it in hex (#rgb or #rrggbb) as three numbers from 0 to 1, or null. */
 export function rgb(hex) {
