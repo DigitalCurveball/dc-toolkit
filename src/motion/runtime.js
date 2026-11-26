@@ -18,12 +18,18 @@
 // - **An effect that plays once waits to be seen**: its clock holds at its first moment until half
 //   of it is on the screen (or it fills half the screen), so it isn't over before anyone sees it.
 // - **A lost WebGL context shows the still**, and the effect starts again if the context returns.
+// - **A switch shows a group's stills** (the showcase's on/off, digitalcurveball#31): a
+//   `.dc-motion-switch` button, `role="switch"`, whose `aria-controls` names the element whose
+//   effects it switches, its own and those inside it. Off, they show their stills, as the editor's
+//   off does, in state `off`; on again, each plays as if just scrolled to. Hidden until the runtime
+//   starts, and under reduced motion, where nothing moves to switch off. Not remembered.
 //
 // The markup, the same on a site and in a concept (the components in this folder write it):
 //
 //   <section class="dc-motion" data-motion="gradient" data-motion-options='{"colors":["#111","#f33"]}'
 //            style="background: …the still…">…content…</section>
 //   <button type="button" class="dc-motion-toggle" aria-pressed="false" hidden>Pause motion</button>
+//   <button type="button" class="dc-motion-switch" role="switch" aria-checked="true" aria-controls="hero" hidden>Moving background</button>
 //   <script type="module">
 //     import { register } from 'dc-toolkit/motion';
 //     register({ gradient: () => import('dc-toolkit/motion/gradient.js') });
@@ -87,11 +93,12 @@ function begin() {
     for (const record of records.values()) {
       if (reduce.matches) {
         observer.unobserve(record.el);
-        teardown(record);
+        if (!record.off) teardown(record);
       } else {
         observer.observe(record.el);
       }
     }
+    for (const button of switches()) button.hidden = reduce.matches;
     update();
   });
   addEventListener('pointermove', onPointer, { passive: true });
@@ -108,11 +115,12 @@ function scan() {
   bindToggles();
   for (const el of document.querySelectorAll('[data-motion]')) {
     if (records.has(el) || !effects.has(el.dataset.motion)) continue;
-    const record = { el, name: el.dataset.motion, state: 'still', reason: null, visible: false, inst: null, layer: null, loops: false, time: 0, drawn: false, lost: false, loading: false, pointer: null, seen: false, opening: !opened && onScreen(el) };
+    const record = { el, name: el.dataset.motion, state: 'still', reason: null, visible: false, inst: null, layer: null, loops: false, time: 0, drawn: false, lost: false, loading: false, pointer: null, seen: false, off: false, opening: !opened && onScreen(el) };
     records.set(el, record);
     setState(record, 'still');
     if (!reduce.matches) observer.observe(el);
   }
+  bindSwitches();
   update();
 }
 
@@ -126,7 +134,7 @@ function onIntersect(entries) {
     const record = records.get(entry.target);
     if (!record) continue;
     record.visible = entry.isIntersecting;
-    if (record.visible && !record.inst && !record.loading && record.state !== 'failed') setup(record);
+    if (record.visible && !record.inst && !record.loading && !record.off && record.state !== 'failed') setup(record);
   }
   update();
 }
@@ -156,6 +164,7 @@ async function setup(record) {
     return fail(record, 'load');
   }
   record.loading = false;
+  if (record.off) return setState(record, 'off');
   if (reduce.matches) return setState(record, 'still');
   let inst = null;
   try {
@@ -340,6 +349,41 @@ function bindToggles() {
   }
 }
 
+function switches() {
+  return document.querySelectorAll('.dc-motion-switch');
+}
+
+function bindSwitches() {
+  for (const button of switches()) {
+    if (!bound.has(button)) {
+      bound.add(button);
+      button.addEventListener('click', () => setSwitch(button, button.getAttribute('aria-checked') === 'false'));
+    }
+    button.hidden = reduce.matches;
+  }
+}
+
+/** Switches the effects in the button's group off, to their stills, or on again. */
+function setSwitch(button, on) {
+  button.setAttribute('aria-checked', String(on));
+  const group = document.getElementById(button.getAttribute('aria-controls') ?? '');
+  if (!group) return console.warn('dc-motion: a .dc-motion-switch whose aria-controls names no element', button);
+  for (const record of records.values()) {
+    if (!group.contains(record.el) || record.off === !on) continue;
+    record.off = !on;
+    if (!on) {
+      teardown(record);
+      setState(record, 'off');
+      continue;
+    }
+    // The visitor asked to see it move, so it plays as if just scrolled to, not as it was found.
+    Object.assign(record, { opening: false, seen: false, reason: null });
+    setState(record, 'still');
+    if (record.visible && !record.loading && !reduce.matches) setup(record);
+  }
+  update();
+}
+
 function showToggles() {
   const buttons = toggles();
   if (!buttons.length) console.warn('dc-motion: a looping effect runs with no .dc-motion-toggle on the page (WCAG 2.2.2)');
@@ -368,7 +412,7 @@ function readPaused() {
 
 // For the checks, and for anyone looking from the console.
 window.dcMotion = {
-  /** Every effect on the page: its element, name, state (still, loading, running, paused, idle, failed), whether it loops, and why it failed. */
+  /** Every effect on the page: its element, name, state (still, loading, running, paused, idle, failed, or off by a switch), whether it loops, and why it failed. */
   instances: () => [...records.values()].map(({ el, name, state, loops, reason }) => ({ element: el, effect: name, state, loops, reason })),
   pause: () => setPaused(true),
   resume: () => setPaused(false),

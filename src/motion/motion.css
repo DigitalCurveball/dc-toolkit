@@ -1,14 +1,14 @@
 /* The layer an effect draws in, over its element's still and behind its content (runtime.js),
    a still that is content (a logo, marked data-motion-still) fading out as the layer fades in,
-   and the pause control's hiding. The components import this file; a concept links it. The rules
+   and the pause control's and the switches' hiding. The components import this file; a concept links it. The rules
    carry no specificity (:where), so a site's own rule for the same property wins, except the
-   still's fading and the toggle's [hidden], which must hold against a site's `opacity` and
+   still's fading and the buttons' [hidden], which must hold against a site's `opacity` and
    `display`. */
 
 :where(.dc-motion) { position: relative; isolation: isolate; }
 :where(.dc-motion-layer) { position: absolute; inset: 0; z-index: -1; display: block; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity .8s ease-out; }
 :where(.dc-motion-layer.is-shown) { opacity: 1; }
-.dc-motion-toggle[hidden] { display: none !important; }
+.dc-motion-toggle[hidden], .dc-motion-switch[hidden] { display: none !important; }
 :where(.dc-motion [data-motion-still]) { transition: opacity .8s ease-out; }
 @media screen and (prefers-reduced-motion: no-preference) {
   .dc-motion:has(> .dc-motion-layer.is-shown) [data-motion-still] { opacity: 0; }

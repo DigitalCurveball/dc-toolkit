@@ -2,7 +2,7 @@
    .dc-stack, each a .dc-stack-card with a background of its own, the page's Canvas colour until
    the site gives it one.
 
-   Its still, without scripts, under reduced motion and where the editor switched it off, is the
+   Its still, without scripts, under reduced motion and where the editor or a switch turned it off, is the
    cards one after another. Where motion is allowed and scripts run, each card pins with CSS's own
    `position: sticky` as it reaches the top of the screen, a peek lower than the one before, up to
    the sixth, so the next slides up over it; stack.js shrinks the ones beneath, from their top
@@ -22,7 +22,7 @@
 :where(.dc-stack-card) { background: Canvas; }
 
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-  .dc-stack[data-motion]:not([data-motion-state='failed']) {
+  .dc-stack[data-motion]:not([data-motion-state='failed'], [data-motion-state='off']) {
     & > .dc-stack-card {
       position: sticky;
       top: min(var(--dc-stack-top) + var(--dc-stack-index, 0) * var(--dc-stack-peek), 100svh - var(--dc-stack-height, 0px) - var(--dc-stack-peek));

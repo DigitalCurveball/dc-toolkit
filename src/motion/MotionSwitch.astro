@@ -1,0 +1,21 @@
+---
+// An on/off switch for one group of effects (runtime.js; digitalcurveball#31's showcase): off, every
+// effect in the element it names shows its still, as the editor's off does, and on again, each plays
+// as if just scrolled to. For a page that shows motion off, beside it; a client's site doesn't need
+// one, since its editor has the off. Not the pause control, which a looping effect still needs.
+// Hidden until the effects begin, so never without scripts, and under reduced motion. The slot is
+// its label, the same in both states, as a switch's should be; its look is the site's: style
+// `:global(.dc-motion-switch)`, and its state with `[aria-checked='false']`.
+
+import './motion.css';
+
+interface Props {
+  /** The id of the element whose effects it switches: its own, and those inside it. */
+  for: string;
+  class?: string;
+}
+
+const { for: group, class: className } = Astro.props;
+---
+
+<button type="button" role="switch" aria-checked="true" aria-controls={group} class:list={['dc-motion-switch', className]} hidden><slot /></button>

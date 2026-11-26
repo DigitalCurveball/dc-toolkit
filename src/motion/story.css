@@ -1,7 +1,7 @@
 /* The scroll story (story.js; its markup in ScrollStory.astro's comment): steps that each pair a
    picture with a few lines, inside .dc-story-steps.
 
-   Its still, without scripts, under reduced motion and where the editor switched it off, is the
+   Its still, without scripts, under reduced motion and where the editor or a switch turned it off, is the
    steps stacked, each picture above its lines. Where motion is allowed and scripts run, the
    pictures are pinned with CSS's own `position: sticky`: beside the steps where the story is
    720px wide or more, across the top of the screen above them where it is narrower. The steps
@@ -24,7 +24,7 @@
 :where(.dc-story-picture) img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-  .dc-story[data-motion]:not([data-motion-state='failed']) {
+  .dc-story[data-motion]:not([data-motion-state='failed'], [data-motion-state='off']) {
     --dc-story-picture: min(100cqi / (var(--dc-story-ratio)), 45svh); /* its height on a phone */
     container: dc-story / inline-size;
 

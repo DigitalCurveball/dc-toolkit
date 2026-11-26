@@ -1178,3 +1178,43 @@ test('dc-qa passes the count-ups and the spotlight, measuring the text with the 
   assert.deepEqual(result.effects.map((e) => e.loops), [false, false, false, false]);
   assert.ok(result.contrast.some((c) => c.text === 'Presence'), 'a card measured');
 });
+
+test('a switch turns its group\'s effects to their stills, and on again each plays as if just scrolled to', async () => {
+  const { context, page } = await open('switch');
+  const state = (id) => page.evaluate((id) => window.dcMotion.instances().find((i) => i.element.id === id)?.state, id);
+  const sticky = () => page.evaluate(() => getComputedStyle(document.getElementById('one')).position);
+  const toggle = page.locator('#switch');
+  await page.waitForFunction(() => window.dcMotion?.instances().find((i) => i.element.id === 'stack')?.state === 'running', null, { timeout: 10000 });
+  assert.equal(await toggle.isVisible(), true);
+  assert.equal(await sticky(), 'sticky');
+
+  await toggle.click();
+  assert.equal(await toggle.getAttribute('aria-checked'), 'false');
+  assert.equal(await state('stack'), 'off');
+  assert.equal(await state('price'), 'off');
+  assert.equal(await sticky(), 'static'); // the cards one after another, as without scripts
+  assert.equal(await page.locator('#price').textContent(), '$270');
+  assert.notEqual(await state('outside'), 'off'); // only its own group
+  await page.mouse.wheel(0, 200); // scrolling doesn't start a switched-off effect again
+  await page.waitForTimeout(400);
+  assert.equal(await state('stack'), 'off');
+
+  await page.evaluate(() => scrollTo(0, 0));
+  await toggle.click();
+  assert.equal(await toggle.getAttribute('aria-checked'), 'true');
+  await page.waitForFunction(() => window.dcMotion.instances().find((i) => i.element.id === 'stack')?.state === 'running', null, { timeout: 10000 });
+  assert.equal(await sticky(), 'sticky');
+  // On the screen when the page opened, the figure was as written; switched on again, it counts.
+  await page.waitForFunction(() => document.querySelector('#price [aria-hidden]'), null, { timeout: 5000 });
+  await page.waitForFunction(() => !document.querySelector('#price [aria-hidden]') && document.querySelector('#price').textContent === '$270', null, { timeout: 5000 });
+  await context.close();
+});
+
+test('without scripts, or under reduced motion, a switch is hidden', async () => {
+  for (const options of [{ javaScriptEnabled: false }, { reducedMotion: 'reduce' }]) {
+    const { context, page } = await open('switch', options);
+    await page.waitForTimeout(1200);
+    assert.equal(await page.locator('#switch').isVisible(), false);
+    await context.close();
+  }
+});
