@@ -48,8 +48,13 @@
       opacity: 0;
       transition: opacity .6s ease;
     }
+    /* The picture being read shows, and so does every one before it: each fades in over the one
+       before, which stays opaque beneath it, so a cross-fade is never see-through. On a phone the
+       steps scroll under the pinned picture, and a fade from one picture to another showed their
+       words through it. The first is always shown, the floor of the stack. */
     & .dc-story-picture.is-active,
-    & .dc-story-steps:not(:has(.is-active)) > .dc-story-step:first-child > .dc-story-picture { opacity: 1; }
+    & .dc-story-step:first-child > .dc-story-picture,
+    & .dc-story-step:has(~ .dc-story-step > .dc-story-picture.is-active) > .dc-story-picture { opacity: 1; }
     & .dc-story-picture img { transform: scale(calc(1.02 + var(--dc-story-drift, 0) * 0.06)); }
 
     /* The line that fills as the story goes: across the foot of the picture on a phone. */

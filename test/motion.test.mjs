@@ -543,7 +543,8 @@ test('dc-qa passes the rippling photos, which need no pause control', async () =
 /** Each picture's opacity, and where the shown one is on the screen. */
 const story = (page) => page.evaluate(() => {
   const pictures = [...document.querySelectorAll('.dc-story-picture')];
-  const shown = pictures.findIndex((p) => getComputedStyle(p).opacity === '1');
+  // The picture on top: the last one shown, since the ones before it stay opaque beneath it.
+  const shown = pictures.findLastIndex((p) => getComputedStyle(p).opacity === '1');
   const box = pictures[Math.max(shown, 0)].getBoundingClientRect();
   return { opacities: pictures.map((p) => getComputedStyle(p).opacity), shown, top: Math.round(box.top), left: Math.round(box.left), position: getComputedStyle(pictures[0]).position };
 });
@@ -578,7 +579,7 @@ test('on a laptop the scroll story pins its picture beside the steps, and shows 
   const third = await story(page);
   assert.equal(second.shown, 1);
   assert.equal(third.shown, 2);
-  assert.deepEqual(third.opacities.filter((o) => o !== '0').length, 1);
+  assert.deepEqual(third.opacities, ['1', '1', '1', '0']);
   assert.ok(Math.abs(third.top - second.top) <= 1, `pinned (${second.top}, then ${third.top})`);
   assert.ok(Math.abs(third.top + (await page.evaluate(() => document.querySelector('.dc-story-picture').offsetHeight)) / 2 - 400) <= 2, 'in the middle of the screen');
   await context.close();
@@ -598,6 +599,15 @@ test('on a phone the scroll story pins its picture above the steps, which scroll
   const fourth = await story(page);
   assert.equal(fourth.shown, 3);
   assert.equal(fourth.top, 0);
+  // Back to the third step: the fourth picture fades out over the third, which is opaque from the
+  // start, so the steps scrolling under the picture never show through the fade.
+  await readStep(page, 2);
+  await page.waitForTimeout(250);
+  const fading = await story(page);
+  assert.deepEqual(fading.opacities.slice(0, 3), ['1', '1', '1']);
+  assert.ok(Number(fading.opacities[3]) > 0 && Number(fading.opacities[3]) < 1, `the fourth fading out (${fading.opacities[3]})`);
+  await readStep(page, 3);
+  await settled(page);
   // The step being read is below the picture, not under it.
   const covered = await page.evaluate(() => {
     const text = document.querySelectorAll('.dc-story-text')[3].querySelector('h2').getBoundingClientRect();
