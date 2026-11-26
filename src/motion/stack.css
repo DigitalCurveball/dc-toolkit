@@ -15,8 +15,8 @@
    (0px); --dc-stack-peek, how much of each card shows above the next (12px); --dc-stack-gap,
    between the cards (24px); --dc-stack-shrink, how much smaller a card is for each card over it
    (0.05, up to four); and --dc-stack-min, the cards' least height (min(80svh, 640px); auto for
-   none). A sticky card's ancestors must not clip their overflow (`overflow: hidden`), or it
-   doesn't pin. */
+   none). A sticky card's ancestors must not be scroll containers (`overflow: hidden` or `auto`),
+   or it doesn't pin; `overflow: clip` rounds a frame's corners without making one. */
 
 :where(.dc-stack) { --dc-stack-top: 0px; --dc-stack-peek: 12px; --dc-stack-gap: 24px; --dc-stack-shrink: 0.05; --dc-stack-min: min(80svh, 640px); display: flex; flex-direction: column; gap: var(--dc-stack-gap); }
 :where(.dc-stack-card) { background: Canvas; }
