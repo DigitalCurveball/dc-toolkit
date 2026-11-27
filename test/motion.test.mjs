@@ -37,6 +37,9 @@ async function open(name, options = {}, prepare, { software = true } = {}) {
 }
 
 const running = (page) => page.waitForFunction(() => window.dcMotion?.instances().some((i) => i.state === 'running'), null, { timeout: 10000 });
+// Until the runtime has registered `count` effects, which on CI's runner can take longer than a
+// fixed wait: a test that read them after 1.5s found none there (2026-11-27).
+const registered = (page, count) => page.waitForFunction((count) => window.dcMotion?.instances().length === count, count, { timeout: 10000 });
 
 test("the gradient's still: the fields as CSS gradients over the ground, the first field painted last", () => {
   const css = still(['#111111', '#ff3333', '#666']);
@@ -80,7 +83,8 @@ test('the pause control pauses every effect, says so, and is remembered on the n
 
 test('under reduced motion the still stays, no effect is fetched, and there is nothing to pause', async () => {
   const { context, page, requests } = await open('pass', { reducedMotion: 'reduce' });
-  await page.waitForTimeout(1500);
+  await registered(page, 1);
+  await page.waitForTimeout(1500); // time for an effect that shouldn't start to start
   assert.deepEqual(await states(page), ['still']);
   assert.equal(await page.locator('.dc-motion-layer').count(), 0);
   assert.equal(await page.locator('.dc-motion-toggle').isVisible(), false);
@@ -327,7 +331,8 @@ test('the particle logo works from an <img> of the logo too', async () => {
 
 test('under reduced motion the particle logo is the logo itself', async () => {
   const { context, page } = await open('particle-logo', { reducedMotion: 'reduce' });
-  await page.waitForTimeout(1500);
+  await registered(page, 1);
+  await page.waitForTimeout(1500); // time for an effect that shouldn't start to start
   assert.deepEqual(await states(page), ['still']);
   assert.equal(await page.locator('#logo > canvas').count(), 0);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#logo svg')).opacity), '1');
@@ -524,7 +529,8 @@ test('without WebGL a photo stays as it is under the pointer', async () => {
 
 test('under reduced motion the photos are the photos, and no WebGL is asked for', async () => {
   const { context, page } = await open('ripple', { reducedMotion: 'reduce' }, countWebGL);
-  await page.waitForTimeout(1500);
+  await registered(page, 2);
+  await page.waitForTimeout(1500); // time for an effect that shouldn't start to start
   assert.deepEqual(await states(page), ['still', 'still']);
   assert.equal(await page.locator('.dc-motion-layer').count(), 0);
   assert.equal(await page.evaluate(() => window.webgl), 0);
