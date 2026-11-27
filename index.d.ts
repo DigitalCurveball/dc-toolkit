@@ -23,3 +23,6 @@ export function buildConfig<const TLocales extends Locales = never, const TFontP
   config: SiteConfig<TLocales, TFontProviders>,
   run: { isDev: boolean; branch?: string },
 ): AstroUserConfig<TLocales, never, TFontProviders>;
+
+/** The touch listener every page gets, so a press state (:active) shows on an iPhone. */
+export const PRESS_LISTENER: string;

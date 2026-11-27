@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildConfig } from '../index.mjs';
+import { buildConfig, PRESS_LISTENER } from '../index.mjs';
 
 const names = (config) => config.integrations.map((integration) => integration.name);
-async function injected(config) {
+async function injected(config, scripts = []) {
   const routes = [];
   const toolkit = config.integrations.find((integration) => integration.name === 'dc-toolkit');
-  await toolkit.hooks['astro:config:setup']({ injectRoute: (route) => routes.push(route) });
+  await toolkit.hooks['astro:config:setup']({ injectRoute: (route) => routes.push(route), injectScript: (stage, code) => scripts.push({ stage, code }) });
   return routes;
 }
 
@@ -49,6 +49,15 @@ test('contactForm injects the contact route, rendered on demand', async () => {
   assert.equal((await injected(buildConfig({}, { isDev: false }))).some((r) => r.pattern === '/api/contact'), false);
   const contact = (await injected(buildConfig({ contactForm: true }, { isDev: false }))).find((r) => r.pattern === '/api/contact');
   assert.equal(contact?.prerender, false);
+});
+
+test('every page gets a passive touch listener, so a press state shows on an iPhone', async () => {
+  for (const branch of [undefined, 'preview']) {
+    const scripts = [];
+    await injected(buildConfig({}, { isDev: false, branch }), scripts);
+    assert.deepEqual(scripts, [{ stage: 'head-inline', code: PRESS_LISTENER }]);
+  }
+  assert.match(PRESS_LISTENER, /touchstart.*passive: true/);
 });
 
 test('every injected entrypoint resolves to a file in the package', async () => {

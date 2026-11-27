@@ -13,6 +13,9 @@
 // - Under `astro dev`, `cloudflare:workers` (which only exists inside workerd) is a stand-in
 //   with no bindings; for builds, `react-dom/server` is its edge build, or the deployed Worker
 //   fails with "MessageChannel is not defined".
+// - Every page listens for touches, doing nothing with them, so that a press state (:active)
+//   shows on an iPhone: iOS Safari applies :active on a tap only when a touch listener is on the
+//   element or above it (WebKit bugs 138816 and 281755). Passive, so it never holds up a scroll.
 //
 // Each trap's full story: README, "defineSite()".
 import { fileURLToPath } from 'node:url';
@@ -24,12 +27,17 @@ import keystatic from '@keystatic/astro';
 
 const here = (path) => fileURLToPath(new URL(path, import.meta.url));
 
-// The routes every site gets, injected rather than copied into each site's src/pages/.
+// What a press shows on an iPhone needs: a touch listener above every button (README, "defineSite()").
+export const PRESS_LISTENER = "document.addEventListener('touchstart', () => {}, { passive: true });";
+
+// The routes every site gets, injected rather than copied into each site's src/pages/, and the
+// press listener on every page.
 function routes({ contactForm, includeCms }) {
   return {
     name: 'dc-toolkit',
     hooks: {
-      'astro:config:setup': ({ injectRoute }) => {
+      'astro:config:setup': ({ injectRoute, injectScript }) => {
+        injectScript('head-inline', PRESS_LISTENER);
         injectRoute({ pattern: '/robots.txt', entrypoint: 'dc-toolkit/routes/robots.txt.ts' });
         if (!includeCms) {
           injectRoute({ pattern: '/keystatic/[...path]', entrypoint: 'dc-toolkit/routes/cms-unavailable.ts', prerender: false });

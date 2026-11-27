@@ -31,6 +31,9 @@
 //              placeholders are counted, not failed: they are expected until
 //              launch, and the launch checklist is where they become a problem.
 //   headings   exactly one h1, and no skipped levels.
+//   press      every :hover rule inside @media (hover: hover) and (pointer: fine), so a tap on a
+//              phone leaves nothing hovered, and every button, and link drawn as one, with a
+//              press state (:active), from the page's style sheets (src/press-and-hover.mjs).
 //   motion     on a page with a motion effect (src/motion/): a still without scripts
 //              and under reduced motion, each effect starting, a pause control that
 //              pauses and resumes them (WCAG 2.2.2), and the text over each effect
@@ -50,6 +53,7 @@ import { findCoveredText } from '../src/covered-text.mjs';
 import { linkChecker } from '../src/link-status.mjs';
 import { checkMenuButtons } from '../src/menu-buttons.mjs';
 import { checkMotion, hasMotion } from '../src/motion-checks.mjs';
+import { findPressAndHover } from '../src/press-and-hover.mjs';
 import { serve } from '../src/serve.mjs';
 
 const WIDTHS = [320, 400, 768, 1280];
@@ -145,6 +149,24 @@ async function checkDocument(page, path, result) {
     }
   } else {
     lines.push(`- ✅ heading order (${found.headings.length} headings, one h1)`);
+  }
+
+  // Hover only with a mouse, and a press state on everything pressed
+  const { hover, press } = await page.evaluate(findPressAndHover);
+  result.press = { hover, press };
+  if (hover.length || press.length) {
+    if (hover.length) {
+      failures.push(`${path}: ${hover.length} hover rule(s) outside @media (hover: hover) and (pointer: fine)`);
+      lines.push(`- ❌ hover: ${hover.length} rule(s) outside \`@media (hover: hover) and (pointer: fine)\`, so a tap on a phone leaves them on`);
+      for (const { selector, sheet } of hover.slice(0, 5)) lines.push(`    - \`${selector}\` (${sheet})`);
+    }
+    if (press.length) {
+      failures.push(`${path}: ${press.length} button(s) with no press state`);
+      lines.push(`- ❌ press: ${press.length} button(s) or link(s) drawn as one with no \`:active\` state`);
+      for (const { element, text } of press.slice(0, 5)) lines.push(`    - \`${element}\` ("${text}")`);
+    }
+  } else {
+    lines.push('- ✅ hover only with a mouse, and every button with a press state');
   }
 
   // Links

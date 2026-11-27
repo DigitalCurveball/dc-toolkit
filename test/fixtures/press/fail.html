@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Press and hover: broken</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 40px; }
+  .btn { display: inline-block; padding: 12px 20px; background: #c00; color: #fff; text-decoration: none; }
+  .btn:hover { background: #000; }
+  .btn:not(:active) { box-shadow: 0 2px 0 #600; }
+  .cta { display: inline-block; padding: 12px 20px; border: 2px solid #000; color: #000; }
+  .toggle { display: inline-block; padding: 8px; background: #eee; }
+  @media (min-width: 600px) {
+    .card:hover { transform: translateY(-4px); }
+  }
+  @media (hover: hover) {
+    .cta:hover { background: #eee; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p><a class="btn" href="#">Book a call</a> <a class="cta" href="#">Email us</a></p>
+  <p><button class="plain" type="button">Send</button> <div class="toggle" role="button" tabindex="0">Show more</div></p>
+  <div class="card"><p>A card that lifts.</p></div>
+</main>
+</body>
+</html>
