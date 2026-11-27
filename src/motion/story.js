@@ -3,8 +3,9 @@
 // sticky`, so the browser does the scrolling. This says only which step is being read: the one
 // whose lines have reached the middle of the screen, or of what the pinned picture leaves of it on
 // a phone. Its picture takes over with a cross-fade (story.css), drifting a little as the step
-// scrolls (--dc-story-drift, from 0 to 1, on that picture), and --dc-story-total, on the story,
-// says how far through it the reader is, for the line that fills.
+// scrolls (--dc-story-drift, from 0 to 1, on that picture), and --dc-story-total, on
+// .dc-story-steps, says how far through it the reader is, for the line that fills: it is set on the
+// element the line is drawn by, never on the story, so a frame restyles the line and not every step.
 //
 // Tabbing into a step shows its picture, until the page scrolls on. The reading order is the
 // markup's, each picture before its lines, whatever shows.
@@ -17,11 +18,12 @@ export default {
   loops: false,
   pausable: false,
   setup(element) {
+    const list = element.querySelector('.dc-story-steps');
     const steps = [...element.querySelectorAll('.dc-story-step')];
     const texts = steps.map((step) => step.querySelector('.dc-story-text'));
     const pictures = steps.map((step) => step.querySelector('.dc-story-picture'));
-    if (steps.length < 2 || texts.includes(null) || pictures.includes(null)) {
-      console.error('dc-motion: a scroll story needs two or more .dc-story-step, each with a .dc-story-picture and a .dc-story-text');
+    if (!list || steps.length < 2 || texts.includes(null) || pictures.includes(null)) {
+      console.error('dc-motion: a scroll story needs a .dc-story-steps holding two or more .dc-story-step, each with a .dc-story-picture and a .dc-story-text');
       return null;
     }
     let shown = -1;
@@ -62,7 +64,7 @@ export default {
           shown = reading;
         }
         pictures[reading].style.setProperty('--dc-story-drift', within.toFixed(3));
-        element.style.setProperty('--dc-story-total', clamp((line - tops[0]) / (end - tops[0])).toFixed(3));
+        list.style.setProperty('--dc-story-total', clamp((line - tops[0]) / (end - tops[0])).toFixed(3));
       },
       destroy() {
         element.removeEventListener('focusin', focus);
@@ -70,7 +72,7 @@ export default {
           picture.classList.remove('is-active');
           picture.style.removeProperty('--dc-story-drift');
         }
-        element.style.removeProperty('--dc-story-total');
+        list.style.removeProperty('--dc-story-total');
       },
     };
   },

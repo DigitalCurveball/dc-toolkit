@@ -585,6 +585,32 @@ test('on a laptop the scroll story pins its picture beside the steps, and shows 
   await context.close();
 });
 
+test("the scroll story's line fills as the page scrolls, and only the line has how far: not the steps, nor the story", async () => {
+  const { context, page } = await open('story');
+  await page.waitForFunction(() => window.dcMotion?.instances().length === 1);
+  await readStep(page, 0);
+  await page.waitForFunction(() => window.dcMotion.instances()[0].state === 'running');
+  await settled(page);
+  const line = () => page.evaluate(() => {
+    const list = document.querySelector('.dc-story-steps');
+    return {
+      total: list.style.getPropertyValue('--dc-story-total'),
+      fill: getComputedStyle(list, '::after').backgroundImage,
+      step: getComputedStyle(document.querySelector('.dc-story-step')).getPropertyValue('--dc-story-total'),
+      story: document.getElementById('story').style.getPropertyValue('--dc-story-total'),
+    };
+  });
+  const first = await line();
+  await readStep(page, 2);
+  await settled(page);
+  const later = await line();
+  assert.ok(Number(later.total) > Number(first.total), `it fills (${first.total}, then ${later.total})`);
+  assert.notEqual(later.fill, first.fill, 'the line is drawn from it');
+  assert.equal(later.step, '', 'a step has none of it, so a frame restyles only the line');
+  assert.equal(later.story, '');
+  await context.close();
+});
+
 test('on a phone the scroll story pins its picture above the steps, which scroll beneath it', async () => {
   const { context, page } = await open('story', { viewport: { width: 390, height: 844 } });
   await page.waitForFunction(() => window.dcMotion?.instances().length === 1);
@@ -1022,6 +1048,21 @@ test('on a laptop the cards pin one after another, a peek lower each, and the on
   await context.close();
 });
 
+test("a card's shrinking is on the card alone: nothing inside it has its depth", async () => {
+  const { context, page } = await open('stack');
+  await cardFlowAt(page, 0, 300);
+  await started(page, 'stack');
+  await cardFlowAt(page, 2, 20);
+  await stacked(page);
+  const depth = await page.evaluate(() => {
+    const one = document.getElementById('one');
+    return { card: one.style.getPropertyValue('--dc-stack-depth'), inside: getComputedStyle(one.querySelector('h2')).getPropertyValue('--dc-stack-depth') };
+  });
+  assert.ok(Number(depth.card) > 1.5, `two cards over it (${depth.card})`);
+  assert.equal(depth.inside, '', 'so a frame restyles the card, not its content');
+  await context.close();
+});
+
 test('a card taller than the screen pins by its foot, so its last line is on the screen before the next covers it', async () => {
   const { context, page } = await open('stack');
   await cardFlowAt(page, 0, 300);
@@ -1167,12 +1208,16 @@ test('the spotlight follows a mouse across the section and goes out when it leav
   await page.waitForTimeout(600);
   assert.ok(Number(await lit(page)) > 0.95, 'lit');
   const at = await page.evaluate(() => {
-    const spot = document.getElementById('spot');
-    const area = spot.getBoundingClientRect();
-    const card = document.getElementById('card').getBoundingClientRect();
-    return { x: parseFloat(spot.style.getPropertyValue('--dc-spotlight-x')) - (card.left - area.left), left: document.getElementById('card').style.getPropertyValue('--dc-spotlight-left') };
+    const card = document.getElementById('card');
+    return {
+      x: parseFloat(card.style.getPropertyValue('--dc-spotlight-x')),
+      glow: getComputedStyle(card, '::after').getPropertyValue('--dc-spotlight-x'),
+      inside: getComputedStyle(card.querySelector('h3')).getPropertyValue('--dc-spotlight-x'),
+    };
   });
-  assert.ok(Math.abs(at.x - 60) < 2 && at.left, `on the card where the cursor is (${at.x.toFixed(1)}px in)`);
+  assert.ok(Math.abs(at.x - 60) < 2, `on the card where the cursor is (${at.x.toFixed(1)}px in)`);
+  assert.equal(parseFloat(at.glow), at.x, "the card's glow drawn from it");
+  assert.equal(at.inside, '', 'nothing inside the card has it, so a frame restyles only the glows');
   await page.evaluate(() => window.dcMotion.pause());
   await page.mouse.move(box.x + 80, box.y + 60, { steps: 2 });
   await page.waitForTimeout(1500);

@@ -20,6 +20,11 @@
    height of a sticky header the pictures pin below (0px); and --dc-story-gap, between the steps
    and the pictures (64px). The component writes --dc-story-steps, how many steps there are. */
 
+/* --dc-story-total changes on every frame of a scroll, and only the line reads it, so it is
+   registered as not inheriting and set on .dc-story-steps, whose ::after the line is: a frame
+   restyles the line, not every step. */
+@property --dc-story-total { syntax: '*'; inherits: false; }
+
 :where(.dc-story) { --dc-story-ratio: 4 / 3; --dc-story-top: 0px; --dc-story-gap: 64px; container: dc-story / inline-size; }
 :where(.dc-story-step) { display: grid; gap: 16px; margin-block-end: 48px; }
 :where(.dc-story-picture) { margin: 0; overflow: hidden; aspect-ratio: var(--dc-story-ratio); }
@@ -67,6 +72,7 @@
     /* The line that fills as the story goes: across the foot of the picture on a phone. */
     & > .dc-story-steps::after {
       content: '';
+      --dc-story-total: inherit;
       grid-column: 2;
       grid-row: 1 / span var(--dc-story-steps, 1);
       justify-self: end;

@@ -5,24 +5,35 @@
    cursor comes, is the section without the glow. The section's ::before and each card's ::before
    and ::after are the spotlight's.
 
+   --dc-spotlight-x, --dc-spotlight-y and --dc-spotlight-on change on every frame the light moves,
+   so they are registered as not inheriting, and spotlight.js sets them on the section and on each
+   card, in its own pixels: a frame restyles the glows, not everything inside the section and its
+   cards, which cost 5.6 ms a frame with the CPU slowed four times, and 1.3 ms this way (dc-pipeline
+   docs/motion.md, 2026-11-27).
+
    On .dc-spotlight a site may set --dc-spotlight-color, the light's colour (white);
    --dc-spotlight-size, the glow's radius (420px); --dc-spotlight-glow, its strength (0.14); and
    --dc-spotlight-edge, the cards' edges' (0.6). The component writes the colour from its prop. */
+
+@property --dc-spotlight-x { syntax: '*'; inherits: false; }
+@property --dc-spotlight-y { syntax: '*'; inherits: false; }
+@property --dc-spotlight-on { syntax: '*'; inherits: false; }
 
 :where(.dc-spotlight) { --dc-spotlight-color: #fff; --dc-spotlight-size: 420px; --dc-spotlight-glow: 0.14; --dc-spotlight-edge: 0.6; }
 :where(.dc-spotlight-card) { position: relative; isolation: isolate; }
 
 .dc-spotlight::before, .dc-spotlight-card::before, .dc-spotlight-card::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  --dc-spotlight-x: inherit; --dc-spotlight-y: inherit; --dc-spotlight-on: inherit;
   opacity: var(--dc-spotlight-on, 0);
 }
 .dc-spotlight::before {
   z-index: -1;
   background: radial-gradient(circle var(--dc-spotlight-size) at var(--dc-spotlight-x, 50%) var(--dc-spotlight-y, 50%), color-mix(in srgb, var(--dc-spotlight-color) calc(var(--dc-spotlight-glow) * 100%), transparent), transparent);
 }
-/* On a card, the light where it falls on the card: the section's point less the card's place. */
+/* On a card, the light where it falls on the card, which spotlight.js gives in the card's pixels. */
 .dc-spotlight-card::before, .dc-spotlight-card::after {
-  --at: calc(var(--dc-spotlight-x, -999px) - var(--dc-spotlight-left, 0px)) calc(var(--dc-spotlight-y, -999px) - var(--dc-spotlight-top, 0px));
+  --at: var(--dc-spotlight-x, -999px) var(--dc-spotlight-y, -999px);
 }
 .dc-spotlight-card::before {
   z-index: -1;

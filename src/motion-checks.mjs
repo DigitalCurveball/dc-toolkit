@@ -209,10 +209,13 @@ async function measureText(page, moments) {
         // A spotlight's light, placed behind the text at its brightest (spotlight.js).
         const spot = lit && node.closest('[data-motion="spotlight"]');
         if (spot) {
-          const area = spot.getBoundingClientRect();
-          spot.style.setProperty('--dc-spotlight-on', '1');
-          spot.style.setProperty('--dc-spotlight-x', `${left + width / 2 - area.left}px`);
-          spot.style.setProperty('--dc-spotlight-y', `${top + height / 2 - area.top}px`);
+          // On the section and each card, in its own pixels, as spotlight.js sets it.
+          for (const target of [spot, ...spot.querySelectorAll('.dc-spotlight-card')]) {
+            const area = target.getBoundingClientRect();
+            target.style.setProperty('--dc-spotlight-on', '1');
+            target.style.setProperty('--dc-spotlight-x', `${left + width / 2 - area.left}px`);
+            target.style.setProperty('--dc-spotlight-y', `${top + height / 2 - area.top}px`);
+          }
         }
         return { x: left, y: top, width, height };
       }, moment !== 'still');
