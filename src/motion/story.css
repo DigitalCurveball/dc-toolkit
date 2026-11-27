@@ -21,8 +21,9 @@
    and the pictures (64px). The component writes --dc-story-steps, how many steps there are. */
 
 /* --dc-story-total changes on every frame of a scroll, and only the line reads it, so it is
-   registered as not inheriting and set on .dc-story-steps, whose ::after the line is: a frame
-   restyles the line, not every step. */
+   registered as not inheriting and set on .dc-story-steps, whose ::after the line is, so the steps
+   don't inherit it: a frame restyled 8 elements where it restyled 17, in 1.15 ms where it took
+   1.72 with the CPU slowed four times (digitalcurveball.com's /motion/, 2026-11-27). */
 @property --dc-story-total { syntax: '*'; inherits: false; }
 
 :where(.dc-story) { --dc-story-ratio: 4 / 3; --dc-story-top: 0px; --dc-story-gap: 64px; container: dc-story / inline-size; }

@@ -5,7 +5,7 @@
 // a phone. Its picture takes over with a cross-fade (story.css), drifting a little as the step
 // scrolls (--dc-story-drift, from 0 to 1, on that picture), and --dc-story-total, on
 // .dc-story-steps, says how far through it the reader is, for the line that fills: it is set on the
-// element the line is drawn by, never on the story, so a frame restyles the line and not every step.
+// element the line is drawn by, and doesn't inherit (story.css), so the steps don't restyle with it.
 //
 // Tabbing into a step shows its picture, until the page scrolls on. The reading order is the
 // markup's, each picture before its lines, whatever shows.

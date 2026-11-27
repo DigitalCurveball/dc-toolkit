@@ -606,7 +606,7 @@ test("the scroll story's line fills as the page scrolls, and only the line has h
   const later = await line();
   assert.ok(Number(later.total) > Number(first.total), `it fills (${first.total}, then ${later.total})`);
   assert.notEqual(later.fill, first.fill, 'the line is drawn from it');
-  assert.equal(later.step, '', 'a step has none of it, so a frame restyles only the line');
+  assert.equal(later.step, '', 'a step inherits none of it');
   assert.equal(later.story, '');
   await context.close();
 });
@@ -1059,7 +1059,7 @@ test("a card's shrinking is on the card alone: nothing inside it has its depth",
     return { card: one.style.getPropertyValue('--dc-stack-depth'), inside: getComputedStyle(one.querySelector('h2')).getPropertyValue('--dc-stack-depth') };
   });
   assert.ok(Number(depth.card) > 1.5, `two cards over it (${depth.card})`);
-  assert.equal(depth.inside, '', 'so a frame restyles the card, not its content');
+  assert.equal(depth.inside, '', 'what is inside the card inherits none of it');
   await context.close();
 });
 
@@ -1217,7 +1217,7 @@ test('the spotlight follows a mouse across the section and goes out when it leav
   });
   assert.ok(Math.abs(at.x - 60) < 2, `on the card where the cursor is (${at.x.toFixed(1)}px in)`);
   assert.equal(parseFloat(at.glow), at.x, "the card's glow drawn from it");
-  assert.equal(at.inside, '', 'nothing inside the card has it, so a frame restyles only the glows');
+  assert.equal(at.inside, '', 'nothing inside the card inherits it');
   await page.evaluate(() => window.dcMotion.pause());
   await page.mouse.move(box.x + 80, box.y + 60, { steps: 2 });
   await page.waitForTimeout(1500);

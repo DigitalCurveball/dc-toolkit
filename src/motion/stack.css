@@ -19,7 +19,7 @@
    or it doesn't pin; `overflow: clip` rounds a frame's corners without making one. */
 
 /* --dc-stack-depth changes on every frame of a scroll and only the card itself reads it, so it is
-   registered as not inheriting: a frame restyles the card, not everything inside it. */
+   registered as not inheriting, and what is inside the card doesn't inherit it. */
 @property --dc-stack-depth { syntax: '*'; inherits: false; }
 
 :where(.dc-stack) { --dc-stack-top: 0px; --dc-stack-peek: 12px; --dc-stack-gap: 24px; --dc-stack-shrink: 0.05; --dc-stack-min: min(80svh, 640px); display: flex; flex-direction: column; gap: var(--dc-stack-gap); }
