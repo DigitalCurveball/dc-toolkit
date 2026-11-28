@@ -31,6 +31,9 @@
 //              placeholders are counted, not failed: they are expected until
 //              launch, and the launch checklist is where they become a problem.
 //   headings   exactly one h1, and no skipped levels.
+//   first      at the narrowest and widest widths, the largest paint, if it is an image, loads
+//              eagerly with fetchpriority="high", and no image on the first screen loads lazily
+//              (src/first-screen.mjs). Lighthouse only lowers the score for either.
 //   press      every :hover rule inside @media (hover: hover) and (pointer: fine), so a tap on a
 //              phone leaves nothing hovered, and every button, and link drawn as one, with a
 //              press state (:active), from the page's style sheets (src/press-and-hover.mjs).
@@ -50,6 +53,7 @@ import { appendFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { findCoveredText } from '../src/covered-text.mjs';
+import { findFirstScreen } from '../src/first-screen.mjs';
 import { linkChecker } from '../src/link-status.mjs';
 import { checkMenuButtons } from '../src/menu-buttons.mjs';
 import { checkMotion, hasMotion } from '../src/motion-checks.mjs';
@@ -249,13 +253,31 @@ for (const path of paths) {
     const page = await context.newPage();
     await page.goto(target, { waitUntil: 'networkidle' });
 
+    // The first screen's images, before anything scrolls: scrolling ends the largest paint's
+    // record. At the narrowest and widest widths, as axe is.
+    const first = width === WIDTHS[0] || width === WIDTHS.at(-1) ? await page.evaluate(findFirstScreen) : null;
+    if (first) {
+      const problems = [];
+      if (first.lcp && (first.lcp.loading === 'lazy' || !first.lcp.prioritised)) {
+        problems.push(`the largest paint is an image loaded ${first.lcp.loading === 'lazy' ? 'lazily' : 'without fetchpriority="high"'}: ${first.lcp.image}${first.lcp.alt ? ` ("${first.lcp.alt}")` : ''}`);
+      }
+      for (const img of first.lazy) {
+        if (first.lcp?.image !== img.image) problems.push(`a lazily loaded image on the first screen: ${img.image}${img.alt ? ` ("${img.alt}")` : ''}`);
+      }
+      for (const problem of problems) {
+        failures.push(`${path} at ${width}px: ${problem}`);
+        lines.push(`- ❌ **${width}px** ${problem}`);
+      }
+      if (!problems.length) lines.push(`- ✅ ${width}px first screen: ${first.lcp ? 'the largest paint, an image, loads first' : 'no image is the largest paint'}, and nothing on it loads lazily`);
+    }
+
     // Horizontal overflow: the page is wider than its own viewport. One pixel of
     // tolerance for sub-pixel rounding.
     const overflow = await page.evaluate(() =>
       Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) -
       document.documentElement.clientWidth
     );
-    const widthResult = { width, overflow: Math.max(overflow, 0) };
+    const widthResult = { width, overflow: Math.max(overflow, 0), ...(first && { first }) };
     result.widths.push(widthResult);
     if (overflow > 1) {
       failures.push(`${path} overflows horizontally by ${overflow}px at ${width}px`);
