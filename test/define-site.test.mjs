@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildConfig, PRESS_LISTENER } from '../index.mjs';
+import { buildConfig, CSP, PRESS_LISTENER } from '../index.mjs';
 
 const names = (config) => config.integrations.map((integration) => integration.name);
-async function injected(config, scripts = []) {
+async function injected(config, scripts = [], middlewares = []) {
   const routes = [];
   const toolkit = config.integrations.find((integration) => integration.name === 'dc-toolkit');
-  await toolkit.hooks['astro:config:setup']({ injectRoute: (route) => routes.push(route), injectScript: (stage, code) => scripts.push({ stage, code }) });
+  await toolkit.hooks['astro:config:setup']({ injectRoute: (route) => routes.push(route), injectScript: (stage, code) => scripts.push({ stage, code }), addMiddleware: (middleware) => middlewares.push(middleware) });
   return routes;
 }
 
@@ -58,6 +58,19 @@ test('every page gets a passive touch listener, so a press state shows on an iPh
     assert.deepEqual(scripts, [{ stage: 'head-inline', code: PRESS_LISTENER }]);
   }
   assert.match(PRESS_LISTENER, /touchstart.*passive: true/);
+});
+
+test('main gets the CSP, and the middleware that leaves the editor out of it; a preview has no editor to leave out', async () => {
+  const main = buildConfig({}, { isDev: false, branch: 'main' });
+  assert.deepEqual(main.security.csp, CSP);
+  const middlewares = [];
+  await injected(main, [], middlewares);
+  assert.deepEqual(middlewares, [{ entrypoint: 'dc-toolkit/routes/editor-csp.ts', order: 'post' }]);
+  assert.ok(existsSync(fileURLToPath(import.meta.resolve(middlewares[0].entrypoint))));
+  const preview = [];
+  await injected(buildConfig({}, { isDev: false, branch: 'preview' }), [], preview);
+  assert.deepEqual(preview, []);
+  assert.equal(buildConfig({ security: { csp: false } }, { isDev: false }).security.csp, false, "a site's own security wins");
 });
 
 test('every injected entrypoint resolves to a file in the package', async () => {

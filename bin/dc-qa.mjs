@@ -34,6 +34,8 @@
 //   first      at the narrowest and widest widths, the largest paint, if it is an image, loads
 //              eagerly with fetchpriority="high", and no image on the first screen loads lazily
 //              (src/first-screen.mjs). Lighthouse only lowers the score for either.
+//   csp        nothing the page loads breaks its Content Security Policy, which defineSite() gives
+//              every site as a <meta>: each violation as the page loads is a failure.
 //   press      every :hover rule inside @media (hover: hover) and (pointer: fine), so a tap on a
 //              phone leaves nothing hovered, and every button, and link drawn as one, with a
 //              press state (:active), from the page's style sheets (src/press-and-hover.mjs).
@@ -155,6 +157,16 @@ async function checkDocument(page, path, result) {
     lines.push(`- ✅ heading order (${found.headings.length} headings, one h1)`);
   }
 
+  // The Content Security Policy: whatever the page tried to load or run and the policy refused.
+  const csp = await page.evaluate(() => ({ policy: !!document.querySelector('meta[http-equiv="content-security-policy" i]'), violations: window.__dcCsp ?? [] }));
+  result.csp = csp;
+  const refused = [...new Map(csp.violations.map((v) => [`${v.directive} ${v.blocked}`, v])).values()];
+  for (const { directive, blocked, sample } of refused) {
+    failures.push(`${path}: the Content Security Policy refused ${blocked} (${directive})`);
+    lines.push(`- ❌ csp: refused ${blocked} under \`${directive}\`${sample ? ` ("${sample}")` : ''}`);
+  }
+  if (csp.policy && !refused.length) lines.push('- ✅ csp: a Content Security Policy, and nothing on the page refused by it');
+
   // Hover only with a mouse, and a press state on everything pressed
   const { hover, press } = await page.evaluate(findPressAndHover);
   result.press = { hover, press };
@@ -239,6 +251,13 @@ for (const path of paths) {
   results.push(result);
 
   const docContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // Every Content Security Policy violation from the first moment, for checkDocument.
+  await docContext.addInitScript(() => {
+    window.__dcCsp = [];
+    document.addEventListener('securitypolicyviolation', (e) => {
+      window.__dcCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI || 'an inline script or style', sample: (e.sample || '').slice(0, 60) });
+    });
+  });
   const docPage = await docContext.newPage();
   await docPage.goto(target, { waitUntil: 'networkidle' });
   await checkDocument(docPage, path, result);

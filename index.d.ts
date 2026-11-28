@@ -26,3 +26,6 @@ export function buildConfig<const TLocales extends Locales = never, const TFontP
 
 /** The touch listener every page gets, so a press state (:active) shows on an iPhone. */
 export const PRESS_LISTENER: string;
+
+/** The Content Security Policy defineSite() gives every site, to spread into a site's own `security.csp`. */
+export const CSP: Exclude<NonNullable<NonNullable<AstroUserConfig['security']>['csp']>, boolean>;

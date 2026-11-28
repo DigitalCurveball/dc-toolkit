@@ -1,0 +1,250 @@
+---
+// The contact form. It posts to /api/contact, the Worker route defineSite() injects when its
+// contactForm is on, which checks everything again and emails the owner; dc-pipeline's
+// docs/contact-form.md has the whole design. One copy, here, for every site (it was copied into
+// each until 2026-11-28).
+//
+// Sending needs JavaScript: Turnstile, the bot check, runs in the browser. Without scripts the
+// form is hidden and a line points to the email address instead. With them, the script below
+// sends the form in the background, so a refusal keeps what the visitor typed.
+//
+// Turnstile loads only when the visitor first touches the form, so a visit that doesn't use it
+// never contacts the check's servers. It runs at the moment of sending, so a slow writer's
+// token can't expire, and it shows itself only if Cloudflare wants a click.
+//
+// A field left empty, or an email address that can't be one, shows its error under it once the
+// visitor has been in it and left it, or tried to send (`:user-invalid`), and goes as soon as it
+// is put right; screen readers hear it with the field, and once when it appears, from one polite
+// region for the form. The browser's own check still stops the send and puts focus on the first
+// field to fix. From Chrome's Modern Web Guidance (dc-pipeline docs/facts.md, Tools).
+//
+// Plumbing, like EmailLink: only the structure is styled here, and the page it sits on gives it
+// its look. Its own elements are scoped to this component, so style them from outside with
+// :global(), and pass the site's button class as buttonClass. All the copy is props, from the
+// page's content, so the client edits it in the CMS, but for the errors, which have defaults.
+import { HONEYPOT, LIMITS, TURNSTILE_ACTION } from './contact';
+
+interface Props {
+  nameLabel: string;
+  emailLabel: string;
+  messageLabel: string;
+  button: string;
+  /** Where a message goes and what checks it. Keep it true: a check runs when it is sent. */
+  note: string;
+  /** Replaces the form once a message has gone. Its heading is an h3: put the form under an h2. */
+  sent: { heading: string; text: string };
+  /** The site's Turnstile site key: its src/lib/contact.ts's TURNSTILE_SITE_KEY. */
+  siteKey: string;
+  /** The site's button class, such as "btn btn--primary". */
+  buttonClass?: string;
+  /** The privacy policy's address, linked under the note: where details are collected, a site
+      with a policy says so there (Australian Privacy Principle 5). */
+  privacy?: string;
+  /** The site's link class, for the privacy link. */
+  linkClass?: string;
+  /** Each field's error, worded as one, for a site that wants other words. */
+  errors?: { name?: string; email?: string; message?: string };
+}
+
+const { nameLabel, emailLabel, messageLabel, button, note, sent, siteKey, buttonClass, privacy, linkClass, errors = {} } = Astro.props;
+const error = {
+  name: errors.name ?? 'Please enter your name.',
+  email: errors.email ?? 'Please enter an email address we can reply to, such as name@example.com.',
+  message: errors.message ?? 'Please write your message.',
+};
+---
+
+<form class="contact-form" method="post" action="/api/contact" data-sitekey={siteKey} data-action={TURNSTILE_ACTION}>
+  <div class="field">
+    <label for="contact-name">{nameLabel}</label>
+    <input id="contact-name" name="name" type="text" autocomplete="name" required maxlength={LIMITS.name} data-error="contact-name-error" />
+    <p class="error" id="contact-name-error">{error.name}</p>
+  </div>
+  <div class="field">
+    <label for="contact-email">{emailLabel}</label>
+    <input id="contact-email" name="email" type="email" autocomplete="email" autocorrect="off" autocapitalize="none" spellcheck="false" required maxlength={LIMITS.email} data-error="contact-email-error" />
+    <p class="error" id="contact-email-error">{error.email}</p>
+  </div>
+  <div class="field">
+    <label for="contact-message">{messageLabel}</label>
+    <textarea id="contact-message" name="message" rows="7" required maxlength={LIMITS.message} data-error="contact-message-error"></textarea>
+    <p class="error" id="contact-message-error">{error.message}</p>
+  </div>
+  {/* The honeypot. Off screen, out of the tab order and hidden from screen readers, so only a bot fills it. */}
+  <div class="trap" aria-hidden="true">
+    <label for={`contact-${HONEYPOT}`}>Leave this empty</label>
+    <input id={`contact-${HONEYPOT}`} name={HONEYPOT} type="text" tabindex="-1" autocomplete="off" />
+  </div>
+  <div class="check"></div>
+  <p class="note">{note}{privacy && <>{' '}<a class={linkClass} href={privacy}>Our privacy policy</a> says how we handle what you send.</>}</p>
+  <p class="problem" role="alert"></p>
+  {/* One polite region, for each field's error as it appears. */}
+  <p class="status" role="status"></p>
+  {/* Enabled by the script once it is ready, so the form never posts without it. */}
+  <button class={buttonClass} type="submit" disabled>{button}</button>
+</form>
+
+<div class="sent" hidden>
+  <h3 tabindex="-1">{sent.heading}</h3>
+  <p>{sent.text}</p>
+</div>
+
+<noscript><p class="note">Sending a message needs JavaScript. Please use the email address on this page instead.</p></noscript>
+
+<script>
+  // Cloudflare's script exposes window.turnstile; only the calls used here are described.
+  interface Turnstile {
+    render(container: HTMLElement, options: Record<string, unknown>): string;
+    execute(widget: string): void;
+    reset(widget: string): void;
+  }
+  const win = window as Window & { turnstile?: Turnstile };
+
+  // What each of the route's refusals means for the visitor.
+  const problems: Record<string, string> = {
+    invalid: 'Please check the form: it needs your name, an email address we can reply to, and a message.',
+    check: "The spam check didn't pass. Please try again, or use the email address on this page.",
+    busy: 'Several messages arrived from you in a short time. Please wait a minute, then try again.',
+    unavailable: "Messages can't be sent from this form yet. Please use the email address on this page.",
+    failed: "Your message didn't send. Please try again, or use the email address on this page.",
+  };
+
+  const form = document.querySelector<HTMLFormElement>('.contact-form');
+  if (form) {
+    const container = form.querySelector<HTMLElement>('.check')!;
+    const problem = form.querySelector<HTMLElement>('.problem')!;
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    const sent = form.nextElementSibling as HTMLElement;
+    const label = submit.textContent ?? '';
+
+    let widget: string | undefined;
+    let loading: Promise<Turnstile> | undefined;
+    let waiting: { resolve: (token: string) => void; reject: () => void } | undefined;
+
+    // Load and render Turnstile once, on first use.
+    const turnstile = () =>
+      (loading ??= new Promise<Turnstile>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.onload = () => {
+          const api = win.turnstile;
+          if (!api) return reject();
+          widget = api.render(container, {
+            sitekey: form.dataset.sitekey,
+            action: form.dataset.action,
+            execution: 'execute',
+            appearance: 'interaction-only',
+            // Turnstile's normal widget is 300px wide; below that it has a compact form.
+            size: container.clientWidth < 300 ? 'compact' : 'flexible',
+            // Failures surface once and the next attempt starts fresh, instead of Turnstile
+            // retrying in the background while the visitor reads the error.
+            retry: 'never',
+            callback: (token: string) => waiting?.resolve(token),
+            'error-callback': () => waiting?.reject(),
+            'timeout-callback': () => waiting?.reject(),
+          });
+          resolve(api);
+        };
+        script.onerror = () => reject();
+        document.head.append(script);
+      }));
+
+    const token = async () => {
+      const api = await turnstile();
+      return new Promise<string>((resolve, reject) => {
+        waiting = { resolve, reject };
+        api.execute(widget!);
+      });
+    };
+
+    form.addEventListener('focusin', () => turnstile().catch(() => {}), { once: true });
+
+    // Each field's error, as :user-invalid shows it: aria-invalid says so, the error joins the
+    // field's description only while it shows, and it is said once, a moment after it appears,
+    // so it doesn't talk over the next field.
+    const status = form.querySelector<HTMLElement>('.status')!;
+    const fields = [...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-error]')];
+    const sync = (field: HTMLInputElement | HTMLTextAreaElement, announce: boolean) => {
+      const invalid = field.matches(':user-invalid');
+      const was = field.getAttribute('aria-invalid') === 'true';
+      const id = field.dataset.error!;
+      field.setAttribute('aria-invalid', String(invalid));
+      const ids = (field.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((d) => d && d !== id);
+      if (invalid) ids.push(id);
+      if (ids.length) field.setAttribute('aria-describedby', ids.join(' '));
+      else field.removeAttribute('aria-describedby');
+      const text = document.getElementById(id)?.textContent ?? '';
+      if (announce && invalid && !was) {
+        status.textContent = '';
+        setTimeout(() => (status.textContent = text), 150);
+      } else if (!invalid && status.textContent === text) {
+        status.textContent = ''; // put right: nothing left to hear
+      }
+    };
+    for (const field of fields) {
+      field.setAttribute('aria-invalid', 'false');
+      field.addEventListener('blur', () => sync(field, true));
+      field.addEventListener('change', () => sync(field, true));
+      field.addEventListener('input', () => sync(field, false));
+      // A send with fields to fix: the browser puts focus on the first, where it is read.
+      field.addEventListener('invalid', () => sync(field, false));
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      problem.textContent = '';
+      submit.disabled = true;
+      submit.textContent = 'Sending…';
+
+      let refusal = 'failed';
+      try {
+        const data = new FormData(form);
+        data.set('cf-turnstile-response', await token().catch(() => Promise.reject('check')));
+        const response = await fetch(form.action, { method: 'POST', body: data, headers: { accept: 'application/json' } });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.ok) {
+          form.hidden = true;
+          sent.hidden = false;
+          sent.querySelector<HTMLElement>('h3')!.focus();
+          return;
+        }
+        refusal = result.error in problems ? result.error : 'failed';
+      } catch (reason) {
+        refusal = reason === 'check' ? 'check' : 'failed';
+      }
+      problem.textContent = problems[refusal];
+      // A token is good for one message, so a retry needs a fresh check.
+      if (widget) win.turnstile?.reset(widget);
+      submit.disabled = false;
+      submit.textContent = label;
+    });
+
+    submit.disabled = false;
+  }
+</script>
+
+<style>
+  /* Structure only; the page gives the form its look. */
+  /* Without scripts the form can't send, so it isn't shown (BaseLayout sets .js on <html>). */
+  :global(html:not(.js)) .contact-form { display: none; }
+
+  .field { display: grid; gap: 0.5rem; margin-top: 1.25rem; }
+  .field:first-child { margin-top: 0; }
+  input, textarea { width: 100%; min-height: 48px; font: inherit; }
+  textarea { min-height: 11em; resize: vertical; }
+
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+  /* A field's error shows only once :user-invalid matches; the page gives it its colour. */
+  .error { display: none; margin: 0; }
+  .field:has(:user-invalid) .error { display: block; }
+  .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  .check:not(:empty), .note, .problem:not(:empty), button { margin-top: 1.25rem; }
+  .problem { font-weight: 600; }
+  /* No dimming while sending: the label says what is happening, and dimmed text fails contrast. */
+  button:disabled { cursor: progress; }
+
+  .sent h3:focus { outline: none; }
+  .sent p { margin-top: 0.5rem; }
+</style>

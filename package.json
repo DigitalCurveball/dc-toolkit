@@ -20,6 +20,7 @@
     "./contact": "./src/contact.ts",
     "./email-links": "./src/email-links.ts",
     "./EmailLink.astro": "./src/EmailLink.astro",
+    "./ContactForm.astro": "./src/ContactForm.astro",
     "./Copy.astro": "./src/Copy.astro",
     "./Banner.astro": "./src/Banner.astro",
     "./demo-form": "./src/demo-form.ts",

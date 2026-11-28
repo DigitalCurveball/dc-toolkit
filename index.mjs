@@ -13,6 +13,9 @@
 // - Under `astro dev`, `cloudflare:workers` (which only exists inside workerd) is a stand-in
 //   with no bindings; for builds, `react-dom/server` is its edge build, or the deployed Worker
 //   fails with "MessageChannel is not defined".
+// - A Content Security Policy on every page (CSP, below): Astro hashes the scripts and styles it
+//   emits into a <meta> on each page, so only those, the site's own files and the two services
+//   every site may load (Turnstile, Cloudflare's analytics) run.
 // - Every page listens for touches, doing nothing with them, so that a press state (:active)
 //   shows on an iPhone: iOS Safari applies :active on a tap only when a touch listener is on the
 //   element or above it (WebKit bugs 138816 and 281755). Passive, so it never holds up a scroll.
@@ -30,14 +33,40 @@ const here = (path) => fileURLToPath(new URL(path, import.meta.url));
 // What a press shows on an iPhone needs: a touch listener above every button (README, "defineSite()").
 export const PRESS_LISTENER = "document.addEventListener('touchstart', () => {}, { passive: true });";
 
+// The Content Security Policy every site gets (README, "defineSite()"), from Chrome's Modern Web
+// Guidance and the audit's J3. script-src is Astro's own hashes, the site's files, Turnstile and
+// Cloudflare's analytics beacon; style attributes are allowed, since components set custom
+// properties in them (style="--dc-story-steps: 4") and a style attribute can't run code. Workers and
+// images may come from blob: URLs, which the WebGL check and the particle logo make. No objects,
+// no <base>, and forms post only to the site. Framing stays the zone rule's X-Frame-Options, which a
+// <meta> policy can't set. A site that needs more passes its own `security` to defineSite(),
+// spreading this one.
+export const CSP = {
+  directives: [
+    "default-src 'self'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self' https://cloudflareinsights.com",
+    "frame-src https://challenges.cloudflare.com",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+  ],
+  scriptDirective: { resources: ["'self'", 'https://challenges.cloudflare.com', 'https://static.cloudflareinsights.com'] },
+  styleDirective: { resources: ["'self'", { resource: "'unsafe-inline'", kind: 'attribute' }] },
+};
+
 // The routes every site gets, injected rather than copied into each site's src/pages/, and the
 // press listener on every page.
 function routes({ contactForm, includeCms }) {
   return {
     name: 'dc-toolkit',
     hooks: {
-      'astro:config:setup': ({ injectRoute, injectScript }) => {
+      'astro:config:setup': ({ injectRoute, injectScript, addMiddleware }) => {
         injectScript('head-inline', PRESS_LISTENER);
+        // The editor goes without the CSP, which breaks it (src/routes/editor-csp.ts).
+        if (includeCms) addMiddleware({ entrypoint: 'dc-toolkit/routes/editor-csp.ts', order: 'post' });
         injectRoute({ pattern: '/robots.txt', entrypoint: 'dc-toolkit/routes/robots.txt.ts' });
         if (!includeCms) {
           injectRoute({ pattern: '/keystatic/[...path]', entrypoint: 'dc-toolkit/routes/cms-unavailable.ts', prerender: false });
@@ -76,6 +105,7 @@ export function buildConfig({ contactForm = false, sitemap: sitemapOptions, inte
     ],
     adapter: isDev ? undefined : cloudflare(),
     session: false,
+    security: { csp: CSP, ...astro.security },
     vite: { ...vite, resolve: { ...vite.resolve, alias: withAliases(alias, vite.resolve?.alias) } },
   });
 }

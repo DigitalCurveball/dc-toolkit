@@ -73,7 +73,9 @@ export async function checkMotion(browser, target) {
 }
 
 async function withPage(browser, target, options, work) {
-  const context = await browser.newContext({ viewport: VIEWPORT, ...options });
+  // The checks hide text with a <style> of their own to measure what is behind it, which a site's
+  // Content Security Policy rightly refuses, so their pages bypass it; dc-qa's csp check keeps it.
+  const context = await browser.newContext({ viewport: VIEWPORT, bypassCSP: true, ...options });
   // The browser draws WebGL in software here, where the effects would show their stills
   // (src/motion/gl.js): the checks need their frames, to measure the text over them.
   await context.addInitScript(() => (window.dcMotionSoftware = true));
